@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Sparkify.Message;
+namespace Sparkify.Features.Message;
 
 public class Models : DbContext
 {
