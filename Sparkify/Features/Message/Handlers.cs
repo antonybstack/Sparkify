@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
-namespace Sparkify.Message;
+namespace Sparkify.Features.Message;
 
 public static class Handlers
 {
