@@ -1,0 +1,47 @@
+# Documentation
+# https://www.jetbrains.com/help/rider/2023.1/HTTP_Response_Handling_Examples.html
+
+### GET Message Items
+// @no-log
+// @no-cookie-jar
+GET https://{{host}}:{{port}}/{{endpoint}}
+
+### POST Message Item "test"
+// @no-log
+// @no-cookie-jar
+POST https://{{host}}:{{port}}/{{endpoint}}
+Content-Type: application/json
+
+{
+  "value": "test"
+}
+
+> {%
+    client.global.set("id", response.body.id);
+%}
+
+### Get Message Item by Id
+// @no-log
+// @no-cookie-jar
+GET https://{{host}}:{{port}}/{{endpoint}}/{{id}}
+
+### PUT Message Item by Id
+// @no-cookie-jar
+// @no-log
+PUT https://{{host}}:{{port}}/{{endpoint}}/{{id}}
+Content-Type: application/json
+
+{
+  "name": "test-complete",
+  "isComplete": true
+}
+
+### GET Completed Message Items
+// @no-log
+// @no-cookie-jar
+GET https://{{host}}:{{port}}/{{endpoint}}/complete
+
+### DELETE Message Item by Id
+// @no-cookie-jar
+// @no-log
+DELETE https://{{host}}:{{port}}/{{endpoint}}/{{id}}
