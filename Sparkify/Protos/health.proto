@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option csharp_namespace = "Sparkify";
+
+package health;
+
+// service definition.
+service Health {
+  rpc Ping (HealthRequest) returns (HealthResponse);
+}
+
+// request message containing the client's name.
+message HealthRequest {
+  string name = 1;
+}
+
+// The response message containing the health status
+message HealthResponse {
+  string message = 1;
+}

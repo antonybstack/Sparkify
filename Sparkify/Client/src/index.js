@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", {value: true});
 var signalR = require("@microsoft/signalr");
 require("./css/main.css");
 var divMessages = document.querySelector("#divMessages");
@@ -19,7 +19,9 @@ connection.on("SendMessage", function (username, message) {
     divMessages.appendChild(m);
     divMessages.scrollTop = divMessages.scrollHeight;
 });
-connection.start().catch(function (err) { return document.write(err); });
+connection.start().catch(function (err) {
+    return document.write(err);
+});
 /* Fires when the user types in the tbMessage textbox and
    calls the send function when the user presses the Enter key.*/
 tbMessage.addEventListener("keyup", function (e) {
@@ -29,7 +31,10 @@ tbMessage.addEventListener("keyup", function (e) {
 });
 /* Fires when the user clicks the Send button and calls the send function. */
 btnSend.addEventListener("click", send);
+
 function send() {
     connection.send("SendMessageToGroup", tbMessage.value)
-        .then(function () { return (tbMessage.value = ""); });
+        .then(function () {
+            return (tbMessage.value = "");
+        });
 }

@@ -13,9 +13,9 @@ public class MessageHub : Hub<IMessageClient>
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, "SignalR Users");
         await Clients.Group("SignalR Users").SendMessage(Context.ConnectionId, " has joined the channel.");
-        await base. OnConnectedAsync();
+        await base.OnConnectedAsync();
     }
-    
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, "SignalR Users");
