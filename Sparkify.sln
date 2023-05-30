@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify", "Sparkify\Sparkify.csproj", "{D8982147-802E-4235-99EF-81618634BAEF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify.Grpc", "Sparkify.Grpc\Sparkify.Grpc.csproj", "{7A8C8C82-FBE8-4DB2-9825-92CEDC56A209}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{D8982147-802E-4235-99EF-81618634BAEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8982147-802E-4235-99EF-81618634BAEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8982147-802E-4235-99EF-81618634BAEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A8C8C82-FBE8-4DB2-9825-92CEDC56A209}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A8C8C82-FBE8-4DB2-9825-92CEDC56A209}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A8C8C82-FBE8-4DB2-9825-92CEDC56A209}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A8C8C82-FBE8-4DB2-9825-92CEDC56A209}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
