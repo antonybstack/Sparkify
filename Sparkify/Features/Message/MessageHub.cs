@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 
-namespace Sparkify.Hubs;
+namespace Sparkify.Features.Message;
 
 public interface IMessageClient
 {

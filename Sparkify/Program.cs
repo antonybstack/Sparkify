@@ -3,7 +3,6 @@ using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
 using Sparkify;
 using Sparkify.Features.Message;
-using Sparkify.Hubs;
 using Sparkify.Features.OmniLog;
 
 // configure use web root
@@ -19,9 +18,12 @@ Debug.WriteLine($"ContentRoot Path: {builder.Environment.ContentRootPath}");
 Debug.WriteLine($"WebRootPath: {builder.Environment.WebRootPath}");
 Debug.WriteLine($"IsDevelopment: {isDevelopment}");
 
-// adds the database context to the dependency injection container
-builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
+/* DEPENDENCY INJECTION (SERVICES) SECTION
+ * The preceding code adds the MVC services to the dependency injection container */
 
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
 builder.Services.AddSignalR();
 
 /*
@@ -34,22 +36,37 @@ builder.Services.AddSingleton<IOmniLog, OmniLog>();
 builder.Services.AddSingleton<IOmniLog, OmniLog>();
 
 builder.Services.AddTransient<RequestMiddleware>();
+
 var app = builder.Build();
 
-if (isDevelopment)
-    app.UseDeveloperExceptionPage();
 
-/* The preceding code allows the server to locate and serve the index.html file.
- * The file is served whether the user enters its full URL or the root URL of the web app. */
-app.UseDefaultFiles(); // Enables default file mapping on the current path
-app.UseStaticFiles(); // Enables static file serving for the current request path
+/* MIDDLEWARE SECTION */
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseMigrationsEndPoint();
+}
+else
+{
+    app.UseExceptionHandler("/Error");
+    /* adds the Strict-Transport-Security header to responses
+     This informs the browser that the application must only be accessed with HTTPS
+     and that any future attempts to access it using HTTP should
+     automatically be converted to HTTPS */
+    app.UseHsts();
+}
 
 app.MapGroup("/messages").MapMessagesApi();
 app.MapHub<MessageHub>("/hub");
+app.Map("/Error",
+    async context =>
+    {
+        await context.Response.WriteAsync(
+            "An error occurred. The server encountered an error and could not complete your request.");
+    });
 
-// Instantiates a gRPC channel containing the connection information of the gRPC service.
-using var channel = GrpcChannel.ForAddress("http://localhost:6002");
-var client = new Health.HealthClient(channel);
+
 app.UseMiddleware<RequestMiddleware>();
 // register middleware to the server's request pipeline
 app.Use(async (context, next) =>
@@ -63,15 +80,52 @@ app.Use(async (context, next) =>
     // do work that doesn't write to the Response.
 });
 
+app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
+
+/* The preceding code allows the server to locate and serve the index.html file.
+ * The file is served whether the user enters its full URL or the root URL of the web app.
+ * Middleware that enables the use of static files, default files, and directory browsing */
+app.UseFileServer();
+
+/* enforces causes an automatic redirection to HTTPS URL
+ when an HTTP URL is received in a way that forces a secure connection.
+ This way, after the initial first HTTPS secure connection is established,
+ the strict-security header (from UseHsts) prevents future redirections that
+ might be used to perform man-in-the-middle attacks.*/
+// app.UseHttpsRedirection();
+// app.UseCookiePolicy();
+// app.UseRouting();
+// app.UseRateLimiter();
+// app.UseRequestLocalization();
+// app.UseCors();
+// app.UseAuthentication();
+// app.UseAuthorization();
+// app.UseSession();
+// app.UseResponseCompression();
+// app.UseResponseCaching();
+
 // Console client running concurrently to provide that acts as a gRPC client
 Task.Run(async () =>
 {
-    while (true)
+    try
     {
-        var reply = await client.PingAsync(new HealthRequest { Name = "GrpcClient" });
-        Console.WriteLine("gRPC Server Status: " + reply.Message);
-        Console.WriteLine("Press any key to ping...");
-        Console.ReadKey();
+        // Instantiates a gRPC channel containing the connection information of the gRPC service.
+        using var channel = GrpcChannel.ForAddress("http://localhost:6002");
+        var client = new Health.HealthClient(channel);
+
+        await Task.Delay(2000);
+
+        while (true)
+        {
+            var reply = await client.PingAsync(new HealthRequest { Name = "GrpcClient" });
+            Console.WriteLine("gRPC Server Status: " + reply.Message);
+            Console.WriteLine("Press any key to ping.......");
+            Console.ReadKey();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
     }
 });
 

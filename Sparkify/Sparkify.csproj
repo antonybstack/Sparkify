@@ -28,16 +28,17 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Protobuf Include="Protos\health.proto" GrpcServices="Client">
-            <Access>Public</Access>
-            <ProtoCompile>True</ProtoCompile>
-            <CompileOutputs>True</CompileOutputs>
-            <OutputDir>obj\Debug/net7.0/</OutputDir>
-            <Generator>MSBuild:Compile</Generator>
-        </Protobuf>
+        <ProjectReference Include="..\Sparkify.Grpc\Sparkify.Grpc.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Sparkify.Grpc\Sparkify.Grpc.csproj"/>
+        <Protobuf Include="Features\Health\health.proto">
+            <GrpcServices>Client</GrpcServices>
+            <Access>Public</Access>
+            <ProtoCompile>True</ProtoCompile>
+            <CompileOutputs>True</CompileOutputs>
+            <OutputDir>obj/Debug/net7.0/</OutputDir>
+            <Generator>MSBuild:Compile</Generator>
+        </Protobuf>
     </ItemGroup>
 </Project>
