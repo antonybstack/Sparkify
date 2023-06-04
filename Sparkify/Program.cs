@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sparkify;
 using Sparkify.Features.Message;
 using Sparkify.Features.OmniLog;
+using Health = Grpc.Health.V1.Health;
 
 // configure use web root
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -105,22 +106,31 @@ app.UseFileServer();
 // app.UseResponseCaching();
 
 // Console client running concurrently to provide that acts as a gRPC client
-Task.Run(async () =>
+_ = Task.Run(async () =>
 {
     try
     {
+        await Task.Delay(1000);
         // Instantiates a gRPC channel containing the connection information of the gRPC service.
-        using var channel = GrpcChannel.ForAddress("http://localhost:6002");
-        var client = new Health.HealthClient(channel);
-
-        await Task.Delay(2000);
-
+        using var channel = GrpcChannel.ForAddress("http://localhost:5003");
+        var healthClient = new Health.HealthClient(channel);
+        
+        var status = (await healthClient.CheckAsync(new())).Status;
+        Console.WriteLine("gRPC Server Status: " + status);
+        
+        var client = new Sparkify.Messenger.MessengerClient(channel);
+        
         while (true)
         {
-            var reply = await client.PingAsync(new HealthRequest { Name = "GrpcClient" });
-            Console.WriteLine("gRPC Server Status: " + reply.Message);
-            Console.WriteLine("Press any key to ping.......");
+            Console.WriteLine("Press any key to ping...");
             Console.ReadKey();
+            
+            var reply =  await client.SendAsync(new MessageRequest
+            {
+                Name = "gRPC Client"
+            });
+            
+            Console.WriteLine("gRPC Server Response: " + reply.Message);
         }
     }
     catch (Exception ex)

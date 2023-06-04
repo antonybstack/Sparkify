@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Sparkify.Grpc.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,11 +16,21 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // Add services to the container.
 builder.Services.AddGrpc();
+    .AddCheck("Sample", () => HealthCheckResult.Healthy());
+
+
+builder.Services.Configure<HealthCheckPublisherOptions>(options =>
+{
+    options.Delay = TimeSpan.FromSeconds(1);
+    options.Period = TimeSpan.FromSeconds(5);
+});
+builder.Logging.ClearProviders();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.MapGrpcService<HealthService>();
+app.MapGrpcService<MessengerService>();
 app.MapGet("/", () => "gRPC Server");
 
 app.Run();
