@@ -16,6 +16,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // Add services to the container.
 builder.Services.AddGrpc();
+builder.Services.AddGrpcHealthChecks()
     .AddCheck("Sample", () => HealthCheckResult.Healthy());
 
 
@@ -25,12 +26,13 @@ builder.Services.Configure<HealthCheckPublisherOptions>(options =>
     options.Period = TimeSpan.FromSeconds(5);
 });
 builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.MapGrpcService<HealthService>();
 app.MapGrpcService<MessengerService>();
 app.MapGet("/", () => "gRPC Server");
+app.MapGrpcHealthChecksService();
 
 app.Run();

@@ -13,11 +13,11 @@ public static class Handlers
         group.MapDelete("/{id}", DeleteMessage);
     }
 
-    private static async Task<Ok<Message[]>> GetAllMessages(Models db)
+    private static async Task<Ok<List<Message>>> GetAllMessages(Models db)
     {
-        return TypedResults.Ok(await db.Messages.ToArrayAsync());
+        return TypedResults.Ok(await db.Messages.ToListAsync());
     }
-
+    
     private static async Task<Results<Ok<Message>, NotFound>> GetMessage(int id, Models db)
     {
         return await db.Messages.FindAsync(id) is Message message
