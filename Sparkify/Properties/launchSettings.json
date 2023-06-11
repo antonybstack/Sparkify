@@ -1,9 +1,17 @@
 {
   "profiles": {
-    "main": {
+    "dev": {
       "commandName": "Project",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "hotReloadEnabled": true,
+      "dotnetRunMessages": true
+    },
+    "prod": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Release"
       },
       "hotReloadEnabled": true,
       "dotnetRunMessages": true
