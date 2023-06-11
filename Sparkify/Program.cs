@@ -1,11 +1,9 @@
-using System.Diagnostics;
-using System.Text.Json;
-using Grpc.Net.Client;
+using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.EntityFrameworkCore;
-using Sparkify;
-using Sparkify.Features.Message;
+using Serilog;
+using Sparkify.Features.Message; 
 using Sparkify.Features.OmniLog;
-using Health = Grpc.Health.V1.Health;
 
 // configure use web root
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -13,12 +11,14 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     Args = args,
     WebRootPath = "Client/wwwroot"
 });
+
+builder.Host.UseSerilog((context, loggerConfig) =>
+{
+    loggerConfig.ReadFrom.Configuration(context.Configuration);
+});
+
 // enables displaying database-related exceptions:
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-var isDevelopment = builder.Environment.IsDevelopment();
-Debug.WriteLine($"ContentRoot Path: {builder.Environment.ContentRootPath}");
-Debug.WriteLine($"WebRootPath: {builder.Environment.WebRootPath}");
-Debug.WriteLine($"IsDevelopment: {isDevelopment}");
 
 /* DEPENDENCY INJECTION (SERVICES) SECTION
  * The preceding code adds the MVC services to the dependency injection container */
@@ -37,22 +37,31 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IOmniLog, OmniLog>();
 builder.Services.AddSingleton<IOmniLog, OmniLog>();
 
-builder.Services.AddTransient<RequestMiddleware>();
-
-builder.Logging.ClearProviders();
-builder.Logging.AddJsonConsole(options =>
-{
-    options.IncludeScopes = false;
-    options.TimestampFormat = "HH:mm:ss ";
-    options.JsonWriterOptions = new JsonWriterOptions
-    {
-        Indented = true
-    };
-});
-
+// builder.Services.AddTransient<RequestMiddleware>();
 
 var app = builder.Build();
 
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("Host", httpContext.Request.Host.Value);
+        diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
+        diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
+        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
+    };
+});
+
+// Log the application startup information
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var isDevelopment = app.Environment.IsDevelopment();
+var server = app.Services.GetRequiredService<IServer>();
+logger.LogInformation("Application Name: {ApplicationName}", builder.Environment.ApplicationName);
+logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment.EnvironmentName);
+logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
+logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
+logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
+logger.LogInformation("Web server: {WebServer}", server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
 
 /* MIDDLEWARE SECTION */
 // Configure the HTTP request pipeline.
@@ -68,7 +77,7 @@ else
      This informs the browser that the application must only be accessed with HTTPS
      and that any future attempts to access it using HTTP should
      automatically be converted to HTTPS */
-    app.UseHsts();
+    // app.UseHsts();
 }
 
 /* enforces causes an automatic redirection to HTTPS URL
@@ -76,13 +85,29 @@ else
  This way, after the initial first HTTPS secure connection is established,
  the strict-security header (from UseHsts) prevents future redirections that
  might be used to perform man-in-the-middle attacks.*/
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 /* The preceding code allows the server to locate and serve the index.html file.
  * The file is served whether the user enters its full URL or the root URL of the web app.
  * Middleware that enables the use of static files, default files, and directory browsing */
 app.UseFileServer();
-app.UseCookiePolicy();
+// app.UseCookiePolicy();
 app.UseRouting();
+
+app.MapGet("/systeminfo", async (HttpContext context) =>
+{
+    var systemInfo = new
+    {
+        RuntimeInformation.OSDescription,
+        RuntimeInformation.OSArchitecture,
+        RuntimeInformation.ProcessArchitecture,
+        Environment.ProcessorCount,
+        Environment.SystemPageSize
+    };
+
+    logger.LogInformation("System Info: {SystemInfo}", systemInfo);
+
+    await context.Response.WriteAsJsonAsync(systemInfo);
+});
 
 app.MapGroup("/messages").MapMessagesApi();
 app.MapHub<MessageHub>("/hub");
@@ -109,7 +134,6 @@ app.MapFallback(async context => { await context.Response.WriteAsync("Page not f
 //     // do work that doesn't write to the Response.
 // });
 
-// app.UseCookiePolicy();
 // app.UseRateLimiter();
 // app.UseRequestLocalization();
 // app.UseCors();
@@ -120,37 +144,37 @@ app.MapFallback(async context => { await context.Response.WriteAsync("Page not f
 // app.UseResponseCaching();
 
 // Console client running concurrently to provide that acts as a gRPC client
-_ = Task.Run(async () =>
-{
-    try
-    {
-        await Task.Delay(1000);
-        // Instantiates a gRPC channel containing the connection information of the gRPC service.
-        using var channel = GrpcChannel.ForAddress("http://localhost:6002");
-        var healthClient = new Health.HealthClient(channel);
-        
-        var status = (await healthClient.CheckAsync(new())).Status;
-        Console.WriteLine("gRPC Server Status: " + status);
-        
-        var client = new Sparkify.Messenger.MessengerClient(channel);
-        
-        while (true)
-        {
-            Console.WriteLine("Press any key to ping...");
-            Console.ReadKey();
-            
-            var reply =  await client.SendAsync(new MessageRequest
-            {
-                Name = "gRPC Client"
-            });
-            
-            Console.WriteLine("gRPC Server Response: " + reply.Message);
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine(ex.Message);
-    }
-});
+// _ = Task.Run(async () =>
+// {
+//     try
+//     {
+//         await Task.Delay(1000);
+//         // Instantiates a gRPC channel containing the connection information of the gRPC service.
+//         using var channel = GrpcChannel.ForAddress("http://localhost:6002");
+//         var healthClient = new Health.HealthClient(channel);
+//
+//         var status = (await healthClient.CheckAsync(new HealthCheckRequest())).Status;
+//         Log.Information("gRPC Server Status: " + status);
+//
+//         var client = new Messenger.MessengerClient(channel);
+//
+//         while (true)
+//         {
+//             Log.Information("Press any key to ping...");
+//             Console.ReadKey();
+//
+//             var reply = await client.SendAsync(new MessageRequest
+//             {
+//                 Name = "gRPC Client"
+//             });
+//
+//             Log.Information("gRPC Server Response: " + reply.Message);
+//         }
+//     }
+//     catch (Exception ex)
+//     {
+//         Log.Warning(ex, "Error occurred while running gRPC client");
+//     }
+// });
 
 app.Run();
