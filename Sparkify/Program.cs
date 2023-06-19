@@ -143,38 +143,5 @@ app.MapFallback(async context => { await context.Response.WriteAsync("Page not f
 // app.UseResponseCompression();
 // app.UseResponseCaching();
 
-// Console client running concurrently to provide that acts as a gRPC client
-// _ = Task.Run(async () =>
-// {
-//     try
-//     {
-//         await Task.Delay(1000);
-//         // Instantiates a gRPC channel containing the connection information of the gRPC service.
-//         using var channel = GrpcChannel.ForAddress("http://localhost:6002");
-//         var healthClient = new Health.HealthClient(channel);
-//
-//         var status = (await healthClient.CheckAsync(new HealthCheckRequest())).Status;
-//         Log.Information("gRPC Server Status: " + status);
-//
-//         var client = new Messenger.MessengerClient(channel);
-//
-//         while (true)
-//         {
-//             Log.Information("Press any key to ping...");
-//             Console.ReadKey();
-//
-//             var reply = await client.SendAsync(new MessageRequest
-//             {
-//                 Name = "gRPC Client"
-//             });
-//
-//             Log.Information("gRPC Server Response: " + reply.Message);
-//         }
-//     }
-//     catch (Exception ex)
-//     {
-//         Log.Warning(ex, "Error occurred while running gRPC client");
-//     }
-// });
 
 app.Run();
