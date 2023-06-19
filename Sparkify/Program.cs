@@ -2,15 +2,10 @@ using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Sparkify.Features.Message; 
 using Sparkify.Features.OmniLog;
 
 // configure use web root
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-{
-    Args = args,
-    WebRootPath = "Client/wwwroot"
-});
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, loggerConfig) =>
 {
@@ -26,7 +21,6 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
-builder.Services.AddSignalR();
 
 /*
  * AddSingleton is called twice with IOmniLog as the service type.
@@ -110,7 +104,6 @@ app.MapGet("/systeminfo", async (HttpContext context) =>
 });
 
 app.MapGroup("/messages").MapMessagesApi();
-app.MapHub<MessageHub>("/hub");
 app.Map("/Error",
     async context =>
     {
