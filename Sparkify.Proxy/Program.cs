@@ -1,6 +1,13 @@
 using Microsoft.AspNetCore.Hosting.Server;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, loggerConfig) =>
+{
+    loggerConfig.ReadFrom.Configuration(context.Configuration);
+});
+
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 var app = builder.Build();
@@ -25,12 +32,22 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error");
-    /* adds the Strict-Transport-Security header to responses
-     This informs the browser that the application must only be accessed with HTTPS
-     and that any future attempts to access it using HTTP should
-     automatically be converted to HTTPS */
-    app.UseHsts();
+
 }
+
+/* adds the Strict-Transport-Security header to responses
+    This informs the browser that the application must only be accessed with HTTPS
+    and that any future attempts to access it using HTTP should
+    automatically be converted to HTTPS */
+//app.UseHsts();
+
+
+/* enforces causes an automatic redirection to HTTPS URL
+    when an HTTP URL is received in a way that forces a secure connection.
+    This way, after the initial first HTTPS secure connection is established,
+    the strict-security header (from UseHsts) prevents future redirections that
+    might be used to perform man-in-the-middle attacks. */
+//app.UseHttpsRedirection();
 
 app.UseCors();
 app.MapReverseProxy();
