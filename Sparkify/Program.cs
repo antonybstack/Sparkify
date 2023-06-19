@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Sparkify.Features.OmniLog;
 
 // configure use web root
 var builder = WebApplication.CreateBuilder(args);
@@ -15,23 +14,8 @@ builder.Host.UseSerilog((context, loggerConfig) =>
 // enables displaying database-related exceptions:
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-/* DEPENDENCY INJECTION (SERVICES) SECTION
- * The preceding code adds the MVC services to the dependency injection container */
-
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-
 builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
-
-/*
- * AddSingleton is called twice with IOmniLog as the service type.
- * The second call to AddSingleton overrides the previous one when a class constructor resolves the injection as IOmniLog
- * The second call adds to the previous one when multiple services are resolved via IEnumerable<IOmniLog>.
- * Services appear in the order they were registered when resolved via IEnumerable<IOmniLog>.
- */
-builder.Services.AddSingleton<IOmniLog, OmniLog>();
-builder.Services.AddSingleton<IOmniLog, OmniLog>();
-
-// builder.Services.AddTransient<RequestMiddleware>();
 
 var app = builder.Build();
 
@@ -67,25 +51,8 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error");
-    /* adds the Strict-Transport-Security header to responses
-     This informs the browser that the application must only be accessed with HTTPS
-     and that any future attempts to access it using HTTP should
-     automatically be converted to HTTPS */
-    // app.UseHsts();
 }
 
-/* enforces causes an automatic redirection to HTTPS URL
- when an HTTP URL is received in a way that forces a secure connection.
- This way, after the initial first HTTPS secure connection is established,
- the strict-security header (from UseHsts) prevents future redirections that
- might be used to perform man-in-the-middle attacks.*/
-// app.UseHttpsRedirection();
-/* The preceding code allows the server to locate and serve the index.html file.
- * The file is served whether the user enters its full URL or the root URL of the web app.
- * Middleware that enables the use of static files, default files, and directory browsing */
-app.UseFileServer();
-// app.UseCookiePolicy();
-app.UseRouting();
 
 app.MapGet("/systeminfo", async (HttpContext context) =>
 {
