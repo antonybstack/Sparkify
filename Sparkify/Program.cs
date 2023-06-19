@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Sparkify.Features.Message;
 
 // configure use web root
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,7 @@ builder.Host.UseSerilog((context, loggerConfig) =>
 // enables displaying database-related exceptions:
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
+/* DEPENDENCY INJECTION (SERVICES) SECTION */
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
 
@@ -53,6 +55,24 @@ else
     app.UseExceptionHandler("/Error");
 }
 
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(state =>
+    {
+        var httpContext = (HttpContext)state;
+        httpContext.Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0");
+        httpContext.Response.Headers.Add("Pragma", "no-cache");
+        httpContext.Response.Headers.Add("Expires", "0");
+        return Task.CompletedTask;
+    }, context);
+
+    await next(context);
+});
+
+app.MapGet("/", async (HttpContext context) =>
+{
+    await context.Response.WriteAsync("Hello Sparkify!");
+});
 
 app.MapGet("/systeminfo", async (HttpContext context) =>
 {
@@ -71,37 +91,12 @@ app.MapGet("/systeminfo", async (HttpContext context) =>
 });
 
 app.MapGroup("/messages").MapMessagesApi();
-app.Map("/Error",
-    async context =>
-    {
-        await context.Response.WriteAsync(
-            "An error occurred. The server encountered an error and could not complete your request.");
-    });
+
+app.Map("/Error", async context =>
+    await context.Response.WriteAsync(
+        "An error occurred. The server encountered an error and could not complete your request.")
+);
 
 app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
-
-
-// app.UseMiddleware<RequestMiddleware>();
-// // register middleware to the server's request pipeline
-// app.Use(async (context, next) =>
-// {
-//     var option = context.Request.Query["option"];
-//     if (!string.IsNullOrWhiteSpace(option))
-//     {
-//         context.Items["option"] = "override";
-//     }
-//     await next(context);
-//     // do work that doesn't write to the Response.
-// });
-
-// app.UseRateLimiter();
-// app.UseRequestLocalization();
-// app.UseCors();
-// app.UseAuthentication();
-// app.UseAuthorization();
-// app.UseSession();
-// app.UseResponseCompression();
-// app.UseResponseCaching();
-
 
 app.Run();
