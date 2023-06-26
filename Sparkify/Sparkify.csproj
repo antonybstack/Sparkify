@@ -21,7 +21,7 @@
         <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="7.0.5"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.5"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="7.0.7"/>
-        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="7.0.5"/>
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="7.0.8"/>
         <!--Integrates TypeScript code into the .NET project
             MSBuild compiles TypeScript code into JavaScript as a part of the build process-->
         <PackageReference Include="Microsoft.TypeScript.MSBuild" Version="5.1.3">
