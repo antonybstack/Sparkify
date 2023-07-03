@@ -5,7 +5,8 @@ using Serilog;
 using Sparkify.Features.Message;
 
 // configure use web root
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateSlimBuilder(args);
+builder.WebHost.UseQuic();
 
 builder.Host.UseSerilog((context, loggerConfig) =>
 {
@@ -55,25 +56,21 @@ else
     app.UseExceptionHandler("/Error");
 }
 
-app.Use(async (context, next) =>
+const string htmlContent = "<html><head><link rel=\"icon\" href=\"data:,\"></head><body>Hello Sparkify!</body></html>";
+app.MapGet("/", (HttpContext context) =>
 {
-    context.Response.OnStarting(state =>
-    {
-        var httpContext = (HttpContext)state;
-        httpContext.Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0");
-        httpContext.Response.Headers.Add("Pragma", "no-cache");
-        httpContext.Response.Headers.Add("Expires", "0");
-        return Task.CompletedTask;
-    }, context);
-
-    await next(context);
+    context.Response.ContentType = "text/html";
+    return htmlContent;
 });
 
-app.MapGet("/", async (HttpContext context) =>
+var systemInfo = new
 {
-    await context.Response.WriteAsync("Hello Sparkify!");
-});
-
+    RuntimeInformation.OSDescription,
+    RuntimeInformation.OSArchitecture,
+    RuntimeInformation.ProcessArchitecture,
+    Environment.ProcessorCount,
+    Environment.SystemPageSize
+};
 app.MapGet("/systeminfo", async (HttpContext context) =>
 {
     var systemInfo = new
@@ -84,8 +81,6 @@ app.MapGet("/systeminfo", async (HttpContext context) =>
         Environment.ProcessorCount,
         Environment.SystemPageSize
     };
-
-    logger.LogInformation("System Info: {SystemInfo}", systemInfo);
 
     await context.Response.WriteAsJsonAsync(systemInfo);
 });

@@ -1,0 +1,27 @@
+# docker compose down && docker compose up -d --build
+services:
+  sparkify.proxy:
+    container_name: sparkify.proxy
+    ports:
+      - 443:443
+      - 80:80
+    networks:
+      - sparkify
+    build:
+      context: .
+      dockerfile: ./Sparkify.Proxy/Dockerfile
+
+  sparkify:
+    container_name: sparkify
+    ports:
+      - 6001:8080
+    networks:
+      - sparkify
+    build:
+      context: .
+      dockerfile: ./Sparkify/Dockerfile
+
+networks:
+  sparkify:
+    name: sparkify
+    external: true

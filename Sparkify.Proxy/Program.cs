@@ -8,8 +8,25 @@ builder.Host.UseSerilog((context, loggerConfig) =>
     loggerConfig.ReadFrom.Configuration(context.Configuration);
 });
 
+// Create self-signed cert for server programatically
+// builder.WebHost.ConfigureKestrel(serverOptions =>
+// {
+//     serverOptions.ConfigureHttpsDefaults(httpsOptions =>
+//     {
+//         using RSA rsa = RSA.Create();
+//         var certReq = new CertificateRequest("CN=contoso.com", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+//         certReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+//         certReq.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, false));
+//         certReq.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, false));
+//         X509Certificate2 cert = certReq.CreateSelfSigned(DateTimeOffset.UtcNow.AddMonths(-1), DateTimeOffset.UtcNow.AddYears(1));
+//         cert = new X509Certificate2(cert.Export(X509ContentType.Pfx));
+//         httpsOptions.ServerCertificate = cert;
+//     });
+// });
+
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
 var app = builder.Build();
 
 // Log the application startup information
@@ -49,6 +66,6 @@ else
     might be used to perform man-in-the-middle attacks. */
 //app.UseHttpsRedirection();
 
-app.UseCors();
+// app.UseCors();
 app.MapReverseProxy();
 app.Run();

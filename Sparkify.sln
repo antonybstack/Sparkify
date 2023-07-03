@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify", "Sparkify\Sparkify.csproj", "{D8982147-802E-4235-99EF-81618634BAEF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify.Proxy", "Sparkify.Proxy\Sparkify.Proxy.csproj", "{B9410D0A-A1E9-4722-B4D5-9188D542CD1B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify.Proxy", "Sparkify.Proxy\Sparkify.Proxy.csproj", "{302f1284-751a-427e-9fed-ffc36107f6d0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
