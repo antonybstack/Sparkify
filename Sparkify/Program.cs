@@ -56,7 +56,7 @@ else
     app.UseExceptionHandler("/Error");
 }
 
-const string htmlContent = "<html><head><link rel=\"icon\" href=\"data:,\"></head><body>Hello Sparkify!</body></html>";
+const string htmlContent = "<html><head><link rel=\"icon\" href=\"data:,\"></head><body style=\"background: rgb(43, 42, 51); color: #cacaca;\">Hello Sparkify!</body></html>";
 app.MapGet("/", (HttpContext context) =>
 {
     context.Response.ContentType = "text/html";
