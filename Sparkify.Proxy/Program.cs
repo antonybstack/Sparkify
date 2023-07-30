@@ -1,12 +1,9 @@
 using Microsoft.AspNetCore.Hosting.Server;
 using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, loggerConfig) =>
-{
-    loggerConfig.ReadFrom.Configuration(context.Configuration);
-});
+builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 
 // Create self-signed cert for server programatically
 // builder.WebHost.ConfigureKestrel(serverOptions =>
@@ -27,18 +24,19 @@ builder.Host.UseSerilog((context, loggerConfig) =>
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Log the application startup information
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
+ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 var isDevelopment = app.Environment.IsDevelopment();
-var server = app.Services.GetRequiredService<IServer>();
+IServer server = app.Services.GetRequiredService<IServer>();
 logger.LogInformation("Application Name: {ApplicationName}", builder.Environment.ApplicationName);
 logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment.EnvironmentName);
 logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
 logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
 logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
-logger.LogInformation("Web server: {WebServer}", server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
+logger.LogInformation("Web server: {WebServer}",
+    server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
 
 /* MIDDLEWARE SECTION */
 // Configure the HTTP request pipeline.
@@ -49,7 +47,6 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error");
-
 }
 
 /* adds the Strict-Transport-Security header to responses

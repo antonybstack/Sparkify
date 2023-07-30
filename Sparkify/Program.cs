@@ -1,20 +1,17 @@
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
-using EventStore.Client;
+using Data;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using Sparkify.Features.Message;
+using Sparkify.Features.Payment;
 
 // configure use web root
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 builder.WebHost.UseQuic();
 
-builder.Host.UseSerilog((context, loggerConfig) =>
-{
-    loggerConfig.ReadFrom.Configuration(context.Configuration);
-});
+builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 
 // enables displaying database-related exceptions:
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -23,9 +20,10 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
 
-var settings = EventStoreClientSettings
-    .Create("esdb://localhost:2113?tls=false");
-var client = new EventStoreClient(settings);
+builder.Services.TryAddSingleton(DbManager.Store);
+
+builder.Services.AddSignalR();
+
 
 WebApplication app = builder.Build();
 
@@ -41,15 +39,16 @@ app.UseSerilogRequestLogging(options =>
 });
 
 // Log the application startup information
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
+ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 var isDevelopment = app.Environment.IsDevelopment();
-var server = app.Services.GetRequiredService<IServer>();
+IServer server = app.Services.GetRequiredService<IServer>();
 logger.LogInformation("Application Name: {ApplicationName}", builder.Environment.ApplicationName);
 logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment.EnvironmentName);
 logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
 logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
 logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
-logger.LogInformation("Web server: {WebServer}", server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
+logger.LogInformation("Web server: {WebServer}",
+    server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
 
 /* MIDDLEWARE SECTION */
 // Configure the HTTP request pipeline.
@@ -63,23 +62,28 @@ else
     app.UseExceptionHandler("/Error");
 }
 
-const string htmlContent = "<html><head><link rel=\"icon\" href=\"data:,\"></head><body style=\"background: rgb(43, 42, 51); color: #cacaca;\">Hello Sparkify!</body></html>";
+
+const string htmlContent = """
+<!DOCTYPE html>
+<html lang=""en"">
+    <head>
+        <meta charset=""UTF-8"">
+        <title>Sparkify</title>
+        <link rel=\"icon\" href=\"data:,\">
+    </head>
+    <body>
+        <h1>Sparkify</h1>
+        <body style=\"background: rgb(43, 42, 51); color: #cacaca;\">Hello Sparkify!</body>
+    </body>
+</html>
+""";
 app.MapGet("/", (HttpContext context) =>
 {
     context.Response.ContentType = "text/html";
     return htmlContent;
 });
 
-var systemInfo = new
-{
-    RuntimeInformation.OSDescription,
-    RuntimeInformation.OSArchitecture,
-    RuntimeInformation.ProcessArchitecture,
-    Environment.ProcessorCount,
-    Environment.SystemPageSize
-};
-
-app.MapGet("/systeminfo", async (HttpContext context) =>
+app.MapGet("/systeminfo", async context =>
 {
     var systemInfo = new
     {
@@ -93,101 +97,11 @@ app.MapGet("/systeminfo", async (HttpContext context) =>
     await context.Response.WriteAsJsonAsync(systemInfo);
 });
 
-app.MapGet("/addtestevent", async (HttpContext context, CancellationToken cancellationToken) =>
-{
-    var eventData = new EventData(
-        Uuid.NewUuid(),
-        "test-event",
-        JsonSerializer.SerializeToUtf8Bytes(systemInfo)
-    );
-
-    await client.AppendToStreamAsync(
-        "concurrency-stream",
-        StreamState.Any,
-        new[] { eventData },
-        cancellationToken: cancellationToken
-    );
-
-    var events = client.ReadAllAsync(Direction.Forwards,
-        Position.Start,
-        resolveLinkTos: true,
-        cancellationToken: cancellationToken);
-
-    await foreach (var e in events)
-    {
-        if (e.Event.EventType.StartsWith("$"))
-            continue;
-        Console.WriteLine(Encoding.UTF8.GetString(e.Event.Data.ToArray()));
-    }
-
-    var clientOneRead = client.ReadStreamAsync(Direction.Forwards,
-        "concurrency-stream",
-        StreamPosition.Start,
-        cancellationToken: cancellationToken);
-    var clientOneRevision = (await clientOneRead.LastAsync(cancellationToken: cancellationToken)).Event.EventNumber.ToUInt64();
-
-    EventStoreClient.ReadStreamResult clientTwoRead = client.ReadStreamAsync(Direction.Forwards,
-        "concurrency-stream",
-        StreamPosition.Start,
-        cancellationToken: cancellationToken);
-    var clientTwoRevision = (await clientTwoRead.LastAsync(cancellationToken: cancellationToken)).Event.EventNumber.ToUInt64();
-
-    var clientOneData = new EventData(
-        Uuid.NewUuid(),
-        "some-event",
-        Encoding.UTF8.GetBytes("{\"id\": \"1\" \"value\": \"clientOne\"}")
-    );
-
-    var test = await client.AppendToStreamAsync("no-stream-stream", clientOneRevision, new List<EventData> {
-        clientOneData
-        },
-        configureOperationOptions: options => options.ThrowOnAppendFailure = false,
-        cancellationToken: cancellationToken);
-
-    var clientTwoData = new EventData(
-        Uuid.NewUuid(),
-        "some-event",
-        Encoding.UTF8.GetBytes("{\"id\": \"2\" \"value\": \"clientTwo\"}")
-    );
-
-    await client.AppendToStreamAsync("no-stream-stream", clientTwoRevision, new List<EventData> {
-        clientTwoData,
-        },
-        configureOperationOptions: options => options.ThrowOnAppendFailure = false,
-        cancellationToken: cancellationToken);
-
-    var result = client.ReadStreamAsync(
-    Direction.Forwards,
-    "some-stream",
-    revision: 10,
-    maxCount: 20);
-
-    await foreach (var e in result)
-        Console.WriteLine(Encoding.UTF8.GetString(e.Event.Data.ToArray()));
-
-    await context.Response.WriteAsJsonAsync(systemInfo, cancellationToken: cancellationToken);
-});
-
-app.MapGet("/read", async (HttpContext context, CancellationToken cancellationToken) =>
-{
-    EventStoreClient.ReadStreamResult result = client.ReadStreamAsync(
-        Direction.Forwards,
-        "concurrency-stream",
-        StreamPosition.Start,
-        cancellationToken: cancellationToken);
-
-    List<ResolvedEvent> events = await result.ToListAsync(cancellationToken);
-    // foreach event source db event, deserialize the data and add to a list
-    var list = new List<object>();
-    foreach (ResolvedEvent @event in events)
-    {
-        var data = JsonSerializer.Deserialize<object>(@event.Event.Data.Span);
-        list.Add(data);
-    }
-    await context.Response.WriteAsJsonAsync(list, cancellationToken: cancellationToken);
-});
-
+app.MapHub<PaymentHub>("/hub");
+app.MapPaymentApi();
 app.MapGroup("/messages").MapMessagesApi();
+
+// app.MapIdentityApi<Account>();
 
 app.Map("/Error", async context =>
     await context.Response.WriteAsync(
@@ -196,31 +110,31 @@ app.Map("/Error", async context =>
 
 app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
 
-var input = new ConsoleInput();
-input.KeyPressed += HandleKeyPress;
+// var input = new ConsoleInput();
+// input.KeyPressed += HandleKeyPress;
 
 app.Run();
 
-static void HandleKeyPress(char key)
-{
-    Console.WriteLine($"You pressed {key}");
-}
+// static void HandleKeyPress(char key)
+// {
+//     Console.WriteLine($"You pressed {key}");
+// }
 
-public class ConsoleInput
-{
-    // Event triggered when a key is pressed
-    public event Action<char> KeyPressed;
-
-    public ConsoleInput()
-    {
-        new Thread(() =>
-        {
-            while (true)
-            {
-                var key = Console.ReadKey(intercept: true);
-                KeyPressed?.Invoke(key.KeyChar);
-            }
-        })
-        { IsBackground = true }.Start();
-    }
-}
+// namespace Sparkify
+// {
+//     public class ConsoleInput
+//     {
+//         public ConsoleInput() =>
+//             new Thread(() =>
+//             {
+//                 while (true)
+//                 {
+//                     ConsoleKeyInfo key = Console.ReadKey(true);
+//                     KeyPressed?.Invoke(key.KeyChar);
+//                 }
+//             }) { IsBackground = true }.Start();
+//
+//         // Event triggered when a key is pressed
+//         public event Action<char> KeyPressed;
+//     }
+// }

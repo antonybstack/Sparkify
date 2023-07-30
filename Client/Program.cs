@@ -1,9 +1,16 @@
 ﻿using Client;
+using Data;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Raven.Client.Documents;
 
-var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddSingleton<UserDataStore>();
-builder.Services.AddHostedService<UserProjectionBackgroundService>();
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.TryAddSingleton(DbManager.Store);
+builder.Services.TryAddTransient(provider => provider.GetRequiredService<IDocumentStore>().OpenAsyncSession());
+
+builder.Services.AddSingleton<AccountDataStore>();
+// builder.Services.AddHostedService<UserProjectionBackgroundService>();
 builder.Services.AddHostedService<ConsoleService>();
 
-var host = builder.Build();
+IHost host = builder.Build();
 host.Run();

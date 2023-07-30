@@ -9,12 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EventStore.Client.Grpc" Version="23.0.0" />
-    <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.0.0" />
-    <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="23.0.0" />
-    <PackageReference Include="EventStore.Client.Grpc.Streams" Version="23.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0-preview.5.23280.8" />
-    <PackageReference Include="Spectre.Console" Version="0.47.0" />
-    <PackageReference Include="Spectre.Console.Json" Version="0.47.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Http.Connections.Client" Version="7.0.8"/>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Connections.Common" Version="7.0.8"/>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="7.0.8"/>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="7.0.8"/>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0-preview.5.23280.8"/>
+    <PackageReference Include="RavenDB.Client" Version="5.4.107"/>
+    <PackageReference Include="Spectre.Console" Version="0.47.0"/>
+    <PackageReference Include="Spectre.Console.Json" Version="0.47.0"/>
+    <PackageReference Include="Ulid" Version="1.2.6"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Data\Data.csproj"/>
   </ItemGroup>
 </Project>

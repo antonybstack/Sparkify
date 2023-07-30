@@ -13,26 +13,17 @@ public static class Handlers
         group.MapDelete("/{id}", DeleteMessage);
     }
 
-    private static async Task<Ok<List<Message>>> GetAllMessages(Models db)
-    {
-        return TypedResults.Ok(await db.Messages.ToListAsync());
-    }
-    
-    private static async Task<Results<Ok<Message>, NotFound>> GetMessage(int id, Models db)
-    {
-        return await db.Messages.FindAsync(id) is Message message
+    private static async Task<Ok<List<Message>>> GetAllMessages(Models db) =>
+        TypedResults.Ok(await db.Messages.ToListAsync());
+
+    private static async Task<Results<Ok<Message>, NotFound>> GetMessage(int id, Models db) =>
+        await db.Messages.FindAsync(id) is Message message
             ? TypedResults.Ok(message)
             : TypedResults.NotFound();
-    }
 
     private static async Task<Created<Message>> CreateMessage(MessageDto messageDto, Models db)
     {
-        var message = new Message
-        {
-            Guid = Guid.NewGuid(),
-            Value = messageDto.Value,
-            CreatedAt = DateTime.UtcNow
-        };
+        var message = new Message { Guid = Guid.NewGuid(), Value = messageDto.Value, CreatedAt = DateTime.UtcNow };
 
         db.Messages.Add(message);
         await db.SaveChangesAsync();
@@ -41,7 +32,10 @@ public static class Handlers
 
     private static async Task<Results<Ok<Message>, NotFound>> DeleteMessage(int id, Models db)
     {
-        if (await db.Messages.FindAsync(id) is not Message message) return TypedResults.NotFound();
+        if (await db.Messages.FindAsync(id) is not Message message)
+        {
+            return TypedResults.NotFound();
+        }
 
         db.Messages.Remove(message);
         await db.SaveChangesAsync();

@@ -1,17 +1,14 @@
 using System.Collections.Concurrent;
+using Data;
 
-namespace Client
+namespace Client;
+
+public class AccountDataStore
 {
-    public class UserDataStore
-    {
-        private readonly ConcurrentDictionary<string, User> _users = new ConcurrentDictionary<string, User>();
+    private readonly ConcurrentDictionary<string, Account> _accounts = new();
 
-        public void AddOrUpdateUser(string userId, User user)
-        {
-            _users.AddOrUpdate(userId, user, (_, __) => user);
-        }
+    public void AddOrUpdateAccount(string userId, Account account) =>
+        _accounts.AddOrUpdate(userId, account, (_, __) => account);
 
-        public IReadOnlyDictionary<string, User> Users => _users;
-    }
-
+    public IReadOnlyDictionary<string, Account> Accounts => _accounts;
 }
