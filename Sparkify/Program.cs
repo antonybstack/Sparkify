@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Data;
 using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
@@ -10,6 +11,9 @@ using Sparkify.Features.Payment;
 // configure use web root
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 builder.WebHost.UseQuic();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 
@@ -62,7 +66,6 @@ else
     app.UseExceptionHandler("/Error");
 }
 
-
 const string htmlContent = """
 <!DOCTYPE html>
 <html lang=""en"">
@@ -77,13 +80,23 @@ const string htmlContent = """
     </body>
 </html>
 """;
-app.MapGet("/", (HttpContext context) =>
 {
     context.Response.ContentType = "text/html";
     return htmlContent;
 });
 
-app.MapGet("/systeminfo", async context =>
+app.UseSwagger(
+    c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
+);
+
+app.UseSwaggerUI(c =>
+{
+    c.RoutePrefix = "api";
+    c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
+    c.DisplayRequestDuration();
+});
+
+app.MapGet("api/systeminfo", async context =>
 {
     var systemInfo = new
     {
@@ -97,11 +110,7 @@ app.MapGet("/systeminfo", async context =>
     await context.Response.WriteAsJsonAsync(systemInfo);
 });
 
-app.MapHub<PaymentHub>("/hub");
 app.MapPaymentApi();
-app.MapGroup("/messages").MapMessagesApi();
-
-// app.MapIdentityApi<Account>();
 
 app.Map("/Error", async context =>
     await context.Response.WriteAsync(
@@ -110,31 +119,18 @@ app.Map("/Error", async context =>
 
 app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
 
-// var input = new ConsoleInput();
-// input.KeyPressed += HandleKeyPress;
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    using IServiceScope scope = app.Services.CreateScope();
+    EndpointDataSource dataSource = scope.ServiceProvider.GetRequiredService<EndpointDataSource>();
+    IServer kestrelServer = scope.ServiceProvider.GetRequiredService<IServer>();
+    var baseUrl = kestrelServer.Features.Get<IServerAddressesFeature>()?.Addresses.First();
+    logger.LogInformation("Open API: {Route}/api", baseUrl);
+    foreach (Endpoint endpoint in dataSource.Endpoints)
+    {
+        if (endpoint is not RouteEndpoint routeEndpoint) continue;
+        logger.LogInformation("{Route}/{RawText} : {DisplayName}", baseUrl, routeEndpoint.RoutePattern.RawText, routeEndpoint.DisplayName);
+    }
+});
 
 app.Run();
-
-// static void HandleKeyPress(char key)
-// {
-//     Console.WriteLine($"You pressed {key}");
-// }
-
-// namespace Sparkify
-// {
-//     public class ConsoleInput
-//     {
-//         public ConsoleInput() =>
-//             new Thread(() =>
-//             {
-//                 while (true)
-//                 {
-//                     ConsoleKeyInfo key = Console.ReadKey(true);
-//                     KeyPressed?.Invoke(key.KeyChar);
-//                 }
-//             }) { IsBackground = true }.Start();
-//
-//         // Event triggered when a key is pressed
-//         public event Action<char> KeyPressed;
-//     }
-// }
