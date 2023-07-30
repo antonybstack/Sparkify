@@ -1,14 +1,18 @@
+using System.Text.Json;
 using Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Commands;
+using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Session;
 
 namespace Sparkify.Features.Payment;
-
 public static class PaymentApiEndpointRouteBuilderExtensions
 {
+    private static readonly byte[] s_lineBreak = "\n"u8.ToArray();
+
     /// <summary>
     ///     Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
@@ -26,79 +30,89 @@ public static class PaymentApiEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        RouteGroupBuilder routeGroup = endpoints.MapGroup("/payment");
+        RouteGroupBuilder routeGroup = endpoints.MapGroup("api/payment");
 
-        routeGroup.MapGet("/", Ok () => TypedResults.Ok());
+        routeGroup.MapGet("/", async Task<Results<Ok<List<PaymentEvent>>, NotFound, ValidationProblem>>
+                ([FromQuery] string? id, [FromServices] IDocumentStore store) =>
+            {
+                try
+                {
+                    using IAsyncDocumentSession session = store.OpenAsyncSession();
 
-        routeGroup.MapPost("/", async Task<Results<Created, ValidationProblem>>
-            ([FromBody] PaymentEvent @event, [FromServices] IDocumentStore store) =>
+                    IRavenQueryable<PaymentEvent> query = session
+                        .Query<PaymentEvent>();
+
+                    if (id is not null)
+                    {
+                        query = query.Where(x => x.ReferenceId == id);
+                    }
+
+                    List<PaymentEvent>? data = await query.ToListAsync();
+
+                    if (data.Count is 0)
+                    {
+                        return TypedResults.NotFound();
+                    }
+
+                    return TypedResults.Ok(data);
+                }
+                catch (Exception e)
+                {
+                    return TypedResults.ValidationProblem(
+                        new Dictionary<string, string[]> { { "errors", new[] { e.Message } } });
+                }
+            })
+            .Produces<List<PaymentEvent>>()
+            .ProducesValidationProblem();
+
+        routeGroup.MapGet("/stream", async (HttpContext context, IDocumentStore store) =>
+            {
+                await foreach (PaymentEvent paymentEvent in StreamEventsAsync(store))
+                {
+                    await JsonSerializer.SerializeAsync(context.Response.Body, paymentEvent);
+                    await context.Response.Body.WriteAsync(s_lineBreak);
+                }
+            })
+            .Produces<List<PaymentEvent>>()
+            .ProducesValidationProblem();
+
+        routeGroup.MapPost("/", async Task<Results<Created<PaymentEvent>, ValidationProblem>>
+                ([FromBody] PaymentEvent @event, [FromServices] IDocumentStore store) =>
+            {
+                try
+                {
+                    using IAsyncDocumentSession session = store.OpenAsyncSession();
+                    await session.StoreAsync(@event);
+                    await session.SaveChangesAsync();
+                    return TypedResults.Created(@event.Id, @event);
+                }
+                catch (Exception e)
+                {
+                    return TypedResults.ValidationProblem(
+                        new Dictionary<string, string[]> { { "errors", new[] { e.Message } } });
+                }
+            })
+            .Produces<PaymentEvent>(StatusCodes.Status201Created)
+            .ProducesValidationProblem();
+
+        return routeGroup.WithOpenApi();
+    }
+
+    private static async IAsyncEnumerable<PaymentEvent> StreamEventsAsync(IDocumentStore store)
+    {
+        using IAsyncDocumentSession? session = store.OpenAsyncSession();
+
+        await using IAsyncEnumerator<StreamResult<PaymentEvent>>? streamResults =
+            await session.Advanced.StreamAsync(session.Query<PaymentEvent>(),
+                out StreamQueryStatistics streamQueryStats);
+
+        // Read from the stream
+        while (await streamResults.MoveNextAsync())
         {
-            try
-            {
-                using IAsyncDocumentSession session = store.OpenAsyncSession();
-
-                await session.StoreAsync(@event);
-
-                await session.SaveChangesAsync();
-
-
-                return TypedResults.Created();
-            }
-            catch (Exception e)
-            {
-                return TypedResults.ValidationProblem(
-                    new Dictionary<string, string[]> { { "Exception", new[] { e.Message } } });
-            }
-        });
-        //
-        // routeGroup.MapPost("/login",
-        //     async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
-        //         ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider sp) =>
-        //     {
-        //         UserManager<TUser> userManager = sp.GetRequiredService<UserManager<TUser>>();
-        //         TUser? user = await userManager.FindByNameAsync(login.Username);
-        //
-        //         if (user is null || !await userManager.CheckPasswordAsync(user, login.Password))
-        //         {
-        //             return TypedResults.Unauthorized();
-        //         }
-        //
-        //         IUserClaimsPrincipalFactory<TUser> claimsFactory =
-        //             sp.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
-        //         ClaimsPrincipal claimsPrincipal = await claimsFactory.CreateAsync(user);
-        //
-        //         var useCookies = cookieMode ?? false;
-        //         var scheme = useCookies ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
-        //
-        //         return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
-        //     });
-        //
-        // routeGroup.MapPost("/refresh",
-        //     async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult, ChallengeHttpResult>>
-        //     ([FromBody] RefreshRequest refreshRequest,
-        //         [FromServices] IOptionsMonitor<BearerTokenOptions> optionsMonitor,
-        //         [FromServices] TimeProvider timeProvider, [FromServices] IServiceProvider sp) =>
-        //     {
-        //         SignInManager<TUser> signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-        //         BearerTokenOptions identityBearerOptions = optionsMonitor.Get(IdentityConstants.BearerScheme);
-        //         ISecureDataFormat<AuthenticationTicket> refreshTokenProtector =
-        //             identityBearerOptions.RefreshTokenProtector ?? throw new ArgumentException(
-        //                 $"{nameof(identityBearerOptions.RefreshTokenProtector)} is null", nameof(optionsMonitor));
-        //         AuthenticationTicket? refreshTicket = refreshTokenProtector.Unprotect(refreshRequest.RefreshToken);
-        //
-        //         // Reject the /refresh attempt with a 401 if the token expired or the security stamp validation fails
-        //         if (refreshTicket?.Properties?.ExpiresUtc is not { } expiresUtc ||
-        //             timeProvider.GetUtcNow() >= expiresUtc ||
-        //             await signInManager.ValidateSecurityStampAsync(refreshTicket.Principal) is not TUser user)
-        //
-        //         {
-        //             return TypedResults.Challenge();
-        //         }
-        //
-        //         ClaimsPrincipal newPrincipal = await signInManager.CreateUserPrincipalAsync(user);
-        //         return TypedResults.SignIn(newPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
-        //     });
-
-        return routeGroup;
+            // Process the received result
+            StreamResult<PaymentEvent> currentResult = streamResults.Current;
+            yield return currentResult.Document;
+        }
     }
 }
+

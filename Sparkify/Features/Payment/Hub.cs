@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using Raven.Client.Documents;
 
 namespace Sparkify.Features.Payment;
 
@@ -9,6 +10,12 @@ public interface IPaymentClient
 
 public class PaymentHub : Hub<IPaymentClient>
 {
+    private readonly IDocumentStore _store;
+    public PaymentHub (IDocumentStore store)
+    {
+        _store = store;
+    }
+
     public override async Task OnConnectedAsync()
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, "SignalR Users");

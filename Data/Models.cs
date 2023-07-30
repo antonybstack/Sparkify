@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
+
 namespace Data;
 
 public class Account : IEntity
@@ -19,9 +22,14 @@ public class User : IEntity
 public record PaymentEvent : IEvent
 
 {
-    public int Amount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [DefaultValue(null)]
     public string Id { get; init; }
+    [DefaultValue(1000)]
+    public int Amount { get; init; }
+    [DefaultValue(nameof(EventType.PaymentRequested))]
     public EventType EventType { get; init; }
+    [DefaultValue("Users/1-A")]
     public string ReferenceId { get; init; }
 }
 
@@ -38,6 +46,7 @@ public interface IEntity
 
 public enum EventType
 {
+    Invalid,
     PaymentRequested,
     PaymentCompleted,
     PaymentFailed,

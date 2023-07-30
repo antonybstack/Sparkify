@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 using Data;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
@@ -12,6 +14,10 @@ using Sparkify.Features.Payment;
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 builder.WebHost.UseQuic();
 
+builder.Services.Configure<JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 
@@ -80,6 +86,7 @@ const string htmlContent = """
     </body>
 </html>
 """;
+app.MapGet("", (HttpContext context) =>
 {
     context.Response.ContentType = "text/html";
     return htmlContent;
@@ -110,7 +117,9 @@ app.MapGet("api/systeminfo", async context =>
     await context.Response.WriteAsJsonAsync(systemInfo);
 });
 
+app.MapHub<PaymentHub>("api/hub");
 app.MapPaymentApi();
+app.MapGroup("api/messages").MapMessagesApi();
 
 app.Map("/Error", async context =>
     await context.Response.WriteAsync(
