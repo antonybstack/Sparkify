@@ -9,15 +9,10 @@ using Raven.Client.Documents.Session;
 namespace Data;
 
 /// See Bogus docs for more info: https://github.com/bchavez/Bogus
-public static class Generator
+public static class DataGenerator
 {
-    // private readonly IDocumentStore _s;
-    //
-    // public static Generator(IDocumentStore s) => _s = s;
-
-    public static async Task Generate(IDocumentStore s)
+    public static async Task SeedUsers(IDocumentStore s)
     {
-        // first check if users table is empty
         using IAsyncDocumentSession session = s.OpenAsyncSession();
         if (await session.Query<User>().AnyAsync())
         {
@@ -30,7 +25,6 @@ public static class Generator
             .RuleFor(u => u.FirstName, f => f.Name.FirstName())
             .RuleFor(u => u.LastName, f => f.Name.LastName())
             .Generate(1000);
-
 
         BulkInsertOperation? bulkInsert = s.BulkInsert();
         foreach (User user in users)

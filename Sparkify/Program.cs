@@ -20,11 +20,9 @@ builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
 builder.Services.TryAddSingleton(DbManager.Store);
-
-builder.Services.AddSignalR();
-
-
+builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
 // builder.Services.AddSignalR();
+builder.Services.AddHostedService<SubscriptionWorker>();
 WebApplication app = builder.Build();
 
 app.UseSerilogRequestLogging(options =>

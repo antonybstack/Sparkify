@@ -1,26 +1,20 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
+using Raven.Client.Documents.Changes;
 
 namespace Data;
 
-public class Account : IEntity
-{
-    public string Name { get; init; }
-    public int Balance { get; init; }
-    public string Id { get; init; }
-
-    // public void Apply(PaymentEvent @event) => Balance += @event.Amount;
-}
-
 public class User : IEntity
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [DefaultValue(null)]
+    public string Id { get; init; }
     public string FirstName { get; init; }
     public string LastName { get; init; }
-    public string Id { get; init; }
 }
 
 public record PaymentEvent : IEvent
-
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [DefaultValue(null)]
@@ -29,7 +23,6 @@ public record PaymentEvent : IEvent
     public int Amount { get; init; }
     [DefaultValue(nameof(EventType.PaymentRequested))]
     public EventType EventType { get; init; }
-    [DefaultValue("Users/1-A")]
     public string ReferenceId { get; init; }
 }
 

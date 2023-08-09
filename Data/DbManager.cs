@@ -1,8 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿using System.Diagnostics;
+using System.Net.Sockets;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
 using Raven.Client.Exceptions;
-using Raven.Client.Json.Serialization.NewtonsoftJson;
+using Raven.Client.Exceptions.Database;
 using Raven.Client.ServerWide;
 using Raven.Client.ServerWide.Operations;
 
@@ -35,6 +37,38 @@ public static class DbManager
     /// <returns>An <see cref="IDocumentStore" /> to further customize the added endpoints.</returns>
     private static IDocumentStore CreateStore()
     {
+        // test interserver connections
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3), };
+        var client = new TcpClient { SendTimeout = 3000 };
+
+        try
+        {
+            httpClient.GetAsync("http://127.0.0.1:8888").Wait();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to connect to RavenDB http server. Exception: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            httpClient.Dispose();
+        }
+
+        try
+        {
+            client.Connect("127.0.0.1", 38888);
+        }
+        catch (SocketException ex)
+        {
+            Debug.WriteLine($"Failed to connect to RavenDB tcp server. Exception: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            client.Dispose();
+        }
+
         IDocumentStore store = new DocumentStore
         {
             // Define the cluster node URLs (required)
@@ -46,18 +80,7 @@ public static class DbManager
                 MaxNumberOfRequestsPerSession = 10000,
                 /* If any of the documents has changed while the code is running
                 a concurrency exception will be raised and the whole transaction will be aborted. */
-                UseOptimisticConcurrency = true,
-                Serialization = new NewtonsoftJsonSerializationConventions
-                {
-                    CustomizeJsonSerializer = serializer =>
-                    {
-                        // If a property is missing during serialization, default values are assigned
-                        serializer.NullValueHandling = NullValueHandling.Ignore;
-                        serializer.ObjectCreationHandling = ObjectCreationHandling.Replace;
-                        // If a property is missing during deserialization, exceptions are silently ignored
-                        serializer.Error += (_, args) => args.ErrorContext.Handled = true;
-                    }
-                }
+                UseOptimisticConcurrency = false,
             },
 
             // Define a default database (optional)
@@ -65,9 +88,32 @@ public static class DbManager
 
             // Initialize the Document Store
         }.Initialize();
+        store.SetRequestTimeout(TimeSpan.FromSeconds(1));
 
-        /*
-        - When enabled, the client will serve cached data immediately without checking
+        if (!DatabaseExists(store))
+        {
+            try
+            {
+                var database = new DatabaseRecord(Name);
+                store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
+            }
+            catch (ConcurrencyException ex)
+            {
+                Debug.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
+            }
+        }
+
+
+        // var a1 = store.Maintenance.Send(new GetDetailedStatisticsOperation());
+        // var a2 = store.Maintenance.Send(new GetStatisticsOperation());
+        // var a3 =  store.Maintenance.Send(new GetDetailedCollectionStatisticsOperation());
+        // var a4 = store.Maintenance.Send(new GetCollectionStatisticsOperation());
+        // var a5 = store.Maintenance.Send(new GetIndexStatisticsOperation());
+        // var a6 = store.Maintenance.Send(new GetIndexNamesOperation(0, 10));
+        // store.Maintenance.Server.Send(new GetDatabaseNamesOperation(0, 10));
+        // var subs = store.Subscriptions.GetSubscriptions(0,int.MaxValue);
+
+        /* When enabled, the client will serve cached data immediately without checking
         the server to see if the data has changed. The server will notify the client
         when the data has changed and the client will update its cache accordingly.
         Most of the time, the data will not be stale, as the server will quickly notify
@@ -79,25 +125,33 @@ public static class DbManager
         will respond with a 304 if the data has not changed. This is the default behavior. */
         store.AggressivelyCache();
 
-        try
-        {
-            var database = new DatabaseRecord(Name);
-            store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
-        }
-        catch (ConcurrencyException ex)
-        {
-            Console.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
-        }
+        DataGenerator.SeedUsers(store).Wait();
 
-        Generator.Generate(store).Wait();
-
-        // Create indexes
-        // new PaymentsByAccountName().Execute(store);
-        // new AccountByAmount().Execute(store);
-        // create all indexes from assembly
         IndexCreation.CreateIndexes(typeof(DbManager).Assembly, store);
 
-
         return store;
+    }
+
+    private static bool DatabaseExists(IDocumentStore documentStore)
+    {
+        try
+        {
+            documentStore.Maintenance.ForDatabase(documentStore.Database).Send(new GetStatisticsOperation());
+            return true;
+        }
+        catch (DatabaseDoesNotExistException)
+        {
+            return false;
+        }
+        catch (Exception ex) when (ex is RavenException || ex is TimeoutException || ex.InnerException is HttpRequestException)
+        {
+            Debug.WriteLine(ex);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            throw;
+        }
     }
 }
