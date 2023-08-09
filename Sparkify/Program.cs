@@ -10,11 +10,8 @@ using Sparkify.Features.Payment;
 
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 builder.WebHost.UseQuic();
-
-builder.Services.Configure<JsonOptions>(options =>
-{
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-});
+builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin()));
+builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
@@ -45,10 +42,10 @@ logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment
 logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
 logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
 logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
-logger.LogInformation("Web server: {WebServer}",
-    server.GetType().Name); // Will log "Web server: KestrelServer" if Kestrel is being used
+logger.LogInformation("Web server: {WebServer}", server.GetType().Name);
 
 /* MIDDLEWARE SECTION */
+// see middleware order at https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0#middleware-order
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -106,7 +103,7 @@ app.Map("error", async context =>
         "An error occurred. The server encountered an error and could not complete your request.")
 );
 app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
-
+// log all endpoints
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     using IServiceScope scope = app.Services.CreateScope();
@@ -120,5 +117,5 @@ app.Lifetime.ApplicationStarted.Register(() =>
         logger.LogInformation("{Route}/{RawText} : {DisplayName}", baseUrl, routeEndpoint.RoutePattern.RawText, routeEndpoint.DisplayName);
     }
 });
-
+app.UseCors();
 app.Run();

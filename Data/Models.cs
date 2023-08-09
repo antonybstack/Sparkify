@@ -66,3 +66,21 @@ public enum EventType
     PaymentChargebackCancelledRequested,
     PaymentChargebackFailedRequested
 }
+
+public class IndexChangeObserver : IObserver<IndexChange>
+{
+    public void OnCompleted()
+    {
+        Debug.WriteLine("All changes have been processed.");
+    }
+
+    public void OnError(Exception error)
+    {
+        // Handle any errors.
+    }
+
+    public void OnNext(IndexChange change)
+    {
+        Debug.WriteLine($"Index {change.Name} has changed. Type of change: {change.Type}");
+    }
+}
