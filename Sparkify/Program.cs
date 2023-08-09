@@ -4,13 +4,10 @@ using Data;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
-using Sparkify.Features.Message;
 using Sparkify.Features.Payment;
 
-// configure use web root
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 builder.WebHost.UseQuic();
 
@@ -20,16 +17,8 @@ builder.Services.Configure<JsonOptions>(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
-
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
-
-// enables displaying database-related exceptions:
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddDbContext<Models>(opt => opt.UseInMemoryDatabase("Messages"));
-
 builder.Services.TryAddSingleton(DbManager.Store);
 
 builder.Services.AddSignalR();
@@ -66,7 +55,6 @@ logger.LogInformation("Web server: {WebServer}",
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    app.UseMigrationsEndPoint();
 }
 else
 {
@@ -83,7 +71,7 @@ const string htmlContent = """
     </head>
     <body>
         <h1>Sparkify</h1>
-        <body style=\"background: rgb(43, 42, 51); color: #cacaca;\">Hello Sparkify!</body>
+        <body style=\"background: rgb(43, 42, 51); color: #333;\">Hello Sparkify!</body>
     </body>
 </html>
 """;
@@ -92,18 +80,15 @@ app.MapGet("", (HttpContext context) =>
     context.Response.ContentType = "text/html";
     return htmlContent;
 });
-
 app.UseSwagger(
     c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
 );
-
 app.UseSwaggerUI(c =>
 {
     c.RoutePrefix = "api";
     c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
     c.DisplayRequestDuration();
 });
-
 app.MapGet("api/systeminfo", async context =>
 {
     var systemInfo = new
@@ -117,16 +102,11 @@ app.MapGet("api/systeminfo", async context =>
 
     await context.Response.WriteAsJsonAsync(systemInfo);
 });
-
-app.MapHub<PaymentHub>("api/hub");
 app.MapPaymentApi();
-app.MapGroup("api/messages").MapMessagesApi();
-
-app.Map("/Error", async context =>
+app.Map("error", async context =>
     await context.Response.WriteAsync(
         "An error occurred. The server encountered an error and could not complete your request.")
 );
-
 app.MapFallback(async context => { await context.Response.WriteAsync("Page not found"); });
 
 app.Lifetime.ApplicationStarted.Register(() =>
