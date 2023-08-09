@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        %sveltekit.head%
+    </head>
+    <body data-sveltekit-preload-data="hover">
+        <div class="content">%sveltekit.body%</div>
+    </body>
+</html>
+
+<style>
+    html {
+        background-color: #333;
+        color: #fff;
+        padding: 10px;
+        margin: 10px;
+        height: 100%;
+    }
+
+    body {
+        margin: 0;
+        height: 100%;
+    }
+
+    .content {
+        display: contents;
+    }
+
+    /* Styles for small viewports */
+
+        body {
+            display: flex;
+            flex-direction: column; /* Make it a column */
+            /* justify-content: center; */
+            align-items: center;
+            height: 100%;
+        }
+
+        .content {
+            width: 100%; /* To make sure it takes the full width */
+            text-align: center; /* Center the inner content */
+        }
+
+</style>
