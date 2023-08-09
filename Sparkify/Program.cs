@@ -35,6 +35,7 @@ builder.Services.TryAddSingleton(DbManager.Store);
 builder.Services.AddSignalR();
 
 
+// builder.Services.AddSignalR();
 WebApplication app = builder.Build();
 
 app.UseSerilogRequestLogging(options =>
