@@ -137,6 +137,7 @@ public static class ApiEndpointRouteBuilderExtensions
                         sb.Clear();
 
                         uidBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{context.TraceIdentifier}|{account.Id}"));
+
                         channel.RegisterClient(uidBase64);
 
                         await foreach (PaymentEvent paymentEvent in channel.ReadAllAsync(uidBase64, context.RequestAborted))
@@ -178,6 +179,32 @@ public static class ApiEndpointRouteBuilderExtensions
             })
             .Produces<PaymentEvent>()
             .ProducesValidationProblem();
+
+
+        routeGroup.MapGet("/health", async (HttpContext context) =>
+            {
+                Debug.WriteLine($"ConnectionId: {context.Connection.Id}");
+                Debug.WriteLine($"LocalIpAddress: {context.Connection.LocalIpAddress}");
+                Debug.WriteLine($"LocalPort: {context.Connection.LocalPort}");
+                Debug.WriteLine($"RemoteIpAddress: {context.Connection.RemoteIpAddress}");
+                Debug.WriteLine($"RemotePort: {context.Connection.RemotePort}");
+                Console.WriteLine($"TraceIdentifier: {context.TraceIdentifier}");
+
+                context.Response.Headers["cache-control"] = "no-cache";
+                context.Response.Headers["content-type"] = "text/event-stream";
+                context.Response.Headers["connection"] = "keep-alive";
+
+                while (!context.RequestAborted.IsCancellationRequested)
+                {
+                    await context.Response.WriteAsync("data: heartbeat\n");
+                    await context.Response.Body.FlushAsync();
+                    Debug.WriteLine($"Heartbeat sent {DateTime.UtcNow}");
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), context.RequestAborted);
+                }
+
+
+                Debug.WriteLine($"Connection {context.Connection.Id} completed");
+            });
 
         routeGroup.MapGet("/streamwrites", async (HttpContext context, IDocumentStore store) =>
             {

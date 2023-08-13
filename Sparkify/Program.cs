@@ -20,18 +20,23 @@ builder.Services.TryAddSingleton(DbManager.Store);
 builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
 // builder.Services.AddSignalR();
 builder.Services.AddHostedService<SubscriptionWorker>();
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 WebApplication app = builder.Build();
 
-app.UseSerilogRequestLogging(options =>
-{
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("Host", httpContext.Request.Host.Value);
-        diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
-        diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
-        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
-    };
-});
+
+// app.UseSerilogRequestLogging(options =>
+// {
+//     options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+//     {
+//         diagnosticContext.Set("Host", httpContext.Request.Host.Value);
+//         diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
+//         diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
+//         diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
+//     };
+// });
 
 // Log the application startup information
 ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();

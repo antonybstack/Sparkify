@@ -13,7 +13,7 @@ namespace Data;
 public static class DbManager
 {
     private const string Name = "Sparkify";
-    private static readonly string[] s_connectionStrings = { "http://127.0.0.1:8888" };
+    private static readonly string[] s_connectionStrings = { "http://192.168.1.200:8888" };
 
     /// The use of “Lazy” ensures that the document store is only created once
     /// without you having to worry about double locking or explicit thread safety issues
@@ -38,16 +38,17 @@ public static class DbManager
     private static IDocumentStore CreateStore()
     {
         // test interserver connections
-        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3), };
+        var httpClient = new HttpClient();
         var client = new TcpClient { SendTimeout = 3000 };
 
         try
         {
-            httpClient.GetAsync("http://127.0.0.1:8888").Wait();
+
+            httpClient.GetAsync("http://192.168.1.200:8888/studio/index.html").Wait();
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to connect to RavenDB http server. Exception: {ex.Message}");
+            Console.WriteLine($"Failed to connect to RavenDB http server. Exception: {ex.Message}");
             throw;
         }
         finally
@@ -57,11 +58,11 @@ public static class DbManager
 
         try
         {
-            client.Connect("127.0.0.1", 38888);
+            client.Connect("192.168.1.200", 38888);
         }
         catch (SocketException ex)
         {
-            Debug.WriteLine($"Failed to connect to RavenDB tcp server. Exception: {ex.Message}");
+            Console.WriteLine($"Failed to connect to RavenDB tcp server. Exception: {ex.Message}");
             throw;
         }
         finally
@@ -99,7 +100,7 @@ public static class DbManager
             }
             catch (ConcurrencyException ex)
             {
-                Debug.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
+                Console.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
             }
         }
 
@@ -145,12 +146,12 @@ public static class DbManager
         }
         catch (Exception ex) when (ex is RavenException || ex is TimeoutException || ex.InnerException is HttpRequestException)
         {
-            Debug.WriteLine(ex);
+            Console.WriteLine(ex);
             throw;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Console.WriteLine(ex);
             throw;
         }
     }
