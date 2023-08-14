@@ -1,15 +1,40 @@
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using Data;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using Sparkify.Features.Payment;
 
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
-builder.WebHost.UseQuic();
+ServicePointManager.DefaultConnectionLimit = 10000;
+
+// configure http2 only unsecure
+builder.WebHost
+.UseQuic()
+.UseKestrel(options =>
+{
+    // options.ListenLocalhost(6002, listenOptions =>
+    // {
+    //     listenOptions.Protocols = HttpProtocols.Http1;
+    // });
+    options.ListenLocalhost(6002, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+        // listenOptions.DisableAltSvcHeader = false // default
+        listenOptions.UseHttps();
+        // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/connection-middleware?view=aspnetcore-8.0
+        // listenOptions.UseConnectionLogging();
+    });
+
+});
+
+builder.Services.AddHttpsRedirection(options => options.HttpsPort = 6002);
+
 builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin()));
 builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
@@ -21,22 +46,32 @@ builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
 // builder.Services.AddSignalR();
 builder.Services.AddHostedService<SubscriptionWorker>();
 
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+// builder.Logging.ClearProviders();
+//builder.Logging.AddConsole();
+
 
 WebApplication app = builder.Build();
 
+app.UseHttpsRedirection();
 
-// app.UseSerilogRequestLogging(options =>
-// {
-//     options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-//     {
-//         diagnosticContext.Set("Host", httpContext.Request.Host.Value);
-//         diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
-//         diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
-//         diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
-//     };
-// });
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "{RequestMethod} {Protocol} {RequestPath} responded {StatusCode} {ContentType} in {Elapsed:0.00} ms from {TraceIdentifier} {RemoteIpAddress}:{RemotePort}";
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("Host", httpContext.Request.Host.Value);
+        diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
+        diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
+        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
+        diagnosticContext.Set("ContentType", httpContext.Request.ContentType);
+        diagnosticContext.Set("ContentLength", httpContext.Request.ContentLength);
+        diagnosticContext.Set("TraceIdentifier", httpContext.TraceIdentifier);
+        diagnosticContext.Set("RemoteIpAddress", httpContext.Connection.RemoteIpAddress);
+        diagnosticContext.Set("RemotePort", httpContext.Connection.RemotePort);
+        diagnosticContext.Set("LocalIpAddress", httpContext.Connection.LocalIpAddress);
+        diagnosticContext.Set("LocalPort", httpContext.Connection.LocalPort);
+    };
+});
 
 // Log the application startup information
 ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();

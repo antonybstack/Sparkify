@@ -122,7 +122,7 @@ public static class ApiEndpointRouteBuilderExtensions
                         using IAsyncDocumentSession? session = store.OpenAsyncSession();
                         session.Advanced.MaxNumberOfRequestsPerSession = 10000;
 
-                        var account = await  session
+                        var account = await session
                             .Query<UsersWithBalance.IndexEntry, UsersWithBalance>()
                             .Customize(x => x.RandomOrdering())
                             .FirstOrDefaultAsync();
@@ -183,27 +183,34 @@ public static class ApiEndpointRouteBuilderExtensions
 
         routeGroup.MapGet("/health", async (HttpContext context) =>
             {
-                Debug.WriteLine($"ConnectionId: {context.Connection.Id}");
-                Debug.WriteLine($"LocalIpAddress: {context.Connection.LocalIpAddress}");
-                Debug.WriteLine($"LocalPort: {context.Connection.LocalPort}");
-                Debug.WriteLine($"RemoteIpAddress: {context.Connection.RemoteIpAddress}");
-                Debug.WriteLine($"RemotePort: {context.Connection.RemotePort}");
-                Console.WriteLine($"TraceIdentifier: {context.TraceIdentifier}");
-
-                context.Response.Headers["cache-control"] = "no-cache";
-                context.Response.Headers["content-type"] = "text/event-stream";
-                context.Response.Headers["connection"] = "keep-alive";
-
-                while (!context.RequestAborted.IsCancellationRequested)
+                try
                 {
-                    await context.Response.WriteAsync("data: heartbeat\n");
-                    await context.Response.Body.FlushAsync();
-                    Debug.WriteLine($"Heartbeat sent {DateTime.UtcNow}");
-                    await Task.Delay(TimeSpan.FromMilliseconds(100), context.RequestAborted);
+                    // if http 2
+                    if (context.Request.Protocol.StartsWith("HTTP/1"))
+                    {
+                        context.Response.Headers.Connection = "keep-alive";
+                    }
+                    context.Response.Headers.CacheControl = "no-cache";
+                    context.Response.Headers.ContentType = "text/event-stream";
+
+                    while (!context.RequestAborted.IsCancellationRequested)
+                    {
+                        await context.Response.WriteAsync("data: heartbeat\n");
+                        await context.Response.Body.FlushAsync();
+                        await Task.Delay(TimeSpan.FromMilliseconds(500));
+                    }
                 }
-
-
-                Debug.WriteLine($"Connection {context.Connection.Id} completed");
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+                finally
+                {
+                    // context.Response.StatusCode = StatusCodes.Status200OK;
+                    context.Response.Body.Close();
+                    context.Response.Body.Dispose();
+                }
+                //Debug.WriteLine($"Connection {context.Connection.Id} completed");
             });
 
         routeGroup.MapGet("/streamwrites", async (HttpContext context, IDocumentStore store) =>
