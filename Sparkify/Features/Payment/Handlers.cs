@@ -179,6 +179,35 @@ public static class ApiEndpointRouteBuilderExtensions
             .Produces<PaymentEvent>()
             .ProducesValidationProblem();
 
+
+        routeGroup.MapGet("/health", async context =>
+            {
+                try
+                {
+                    if (context.Request.Protocol.StartsWith("HTTP/1"))
+                    {
+                        context.Response.Headers.Connection = "keep-alive";
+                    }
+                    context.Response.Headers.CacheControl = "no-cache";
+                    context.Response.Headers.ContentType = "text/event-stream";
+
+                    while (!context.RequestAborted.IsCancellationRequested)
+                    {
+                        await context.Response.WriteAsync("data: heartbeat\n");
+                        await context.Response.Body.FlushAsync();
+                        await Task.Delay(TimeSpan.FromMilliseconds(500));
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+                finally
+                {
+                    await context.Response.Body.DisposeAsync();
+                }
+            });
+
         routeGroup.MapGet("/streamwrites", async (HttpContext context, IDocumentStore store) =>
             {
                 context.Response.Headers["cache-control"] = "no-cache";
