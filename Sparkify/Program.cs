@@ -11,7 +11,6 @@ using Serilog;
 using Sparkify.Features.Payment;
 
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
-builder.WebHost.UseQuic();
 ServicePointManager.DefaultConnectionLimit = 10000;
 
 builder.WebHost
