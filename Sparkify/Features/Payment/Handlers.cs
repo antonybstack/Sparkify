@@ -122,7 +122,7 @@ public static class ApiEndpointRouteBuilderExtensions
                         using IAsyncDocumentSession? session = store.OpenAsyncSession();
                         session.Advanced.MaxNumberOfRequestsPerSession = 10000;
 
-                        var account = await  session
+                        var account = await session
                             .Query<UsersWithBalance.IndexEntry, UsersWithBalance>()
                             .Customize(x => x.RandomOrdering())
                             .FirstOrDefaultAsync();
