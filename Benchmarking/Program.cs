@@ -14,7 +14,7 @@ var httpClientHandler = new HttpClientHandler
 
 var httpClient = new HttpClient(httpClientHandler)
 {
-    BaseAddress = new Uri("https://localhost:6002/api/payment/health", UriKind.RelativeOrAbsolute),
+    BaseAddress = new Uri("https://127.0.0.1:6002/api/payment/health", UriKind.RelativeOrAbsolute),
     Timeout = TimeSpan.FromMinutes(5),
     DefaultRequestVersion =  new Version(2, 0),
     DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
@@ -85,7 +85,7 @@ NBomberRunner
 
 // var scenarioSimple = Scenario.Create("api_scenario", async context =>
 //     {
-//         var test1 = Http.CreateRequest("GET", "http://localhost:6002/api/payment?id=PaymentEvents%2F97-A");
+//         var test1 = Http.CreateRequest("GET", "http://127.0.0.1:6002/api/payment?id=PaymentEvents%2F97-A");
 //         return await Http.Send(httpClient, test1);
 //     })
 //     .WithoutWarmUp()
