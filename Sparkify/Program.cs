@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using Sparkify.Features.Payment;
+using Sparkify.Observability;
 
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 ServicePointManager.DefaultConnectionLimit = 10000;
@@ -33,6 +34,7 @@ builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Con
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
+builder.RegisterOpenTelemetry();
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
 builder.Services.TryAddSingleton(DbManager.Store);
 builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
