@@ -33,8 +33,8 @@ builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod
 builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
-builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 builder.RegisterOpenTelemetry();
+builder.RegisterSerilog();
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
 builder.Services.TryAddSingleton(DbManager.Store);
 builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
@@ -44,25 +44,6 @@ builder.Services.AddHostedService<SubscriptionWorker>();
 WebApplication app = builder.Build();
 
 app.UseHttpsRedirection();
-
-app.UseSerilogRequestLogging(options =>
-{
-    options.MessageTemplate = "{RequestMethod} {Protocol} {RequestPath} responded {StatusCode} {ContentType} in {Elapsed:0.00} ms from {TraceIdentifier} {RemoteIpAddress}:{RemotePort}";
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("Host", httpContext.Request.Host.Value);
-        diagnosticContext.Set("Protocol", httpContext.Request.Protocol);
-        diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
-        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
-        diagnosticContext.Set("ContentType", httpContext.Request.ContentType);
-        diagnosticContext.Set("ContentLength", httpContext.Request.ContentLength);
-        diagnosticContext.Set("TraceIdentifier", httpContext.TraceIdentifier);
-        diagnosticContext.Set("RemoteIpAddress", httpContext.Connection.RemoteIpAddress);
-        diagnosticContext.Set("RemotePort", httpContext.Connection.RemotePort);
-        diagnosticContext.Set("LocalIpAddress", httpContext.Connection.LocalIpAddress);
-        diagnosticContext.Set("LocalPort", httpContext.Connection.LocalPort);
-    };
-});
 
 // Log the application startup information
 ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -74,6 +55,7 @@ logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment
 logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
 logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
 logger.LogInformation("Web server: {WebServer}", server.GetType().Name);
+app.RegisterSerilogRequestLogging();
 
 /* MIDDLEWARE SECTION */
 // see middleware order at https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0#middleware-order
