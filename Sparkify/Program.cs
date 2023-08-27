@@ -44,18 +44,8 @@ builder.Services.AddHostedService<SubscriptionWorker>();
 WebApplication app = builder.Build();
 
 app.UseHttpsRedirection();
-
-// Log the application startup information
-ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
-var isDevelopment = app.Environment.IsDevelopment();
-IServer server = app.Services.GetRequiredService<IServer>();
-logger.LogInformation("Application Name: {ApplicationName}", builder.Environment.ApplicationName);
-logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment.EnvironmentName);
-logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
-logger.LogInformation("WebRootPath: {WebRootPath}", builder.Environment.WebRootPath);
-logger.LogInformation("IsDevelopment: {IsDevelopment}", isDevelopment);
-logger.LogInformation("Web server: {WebServer}", server.GetType().Name);
 app.RegisterSerilogRequestLogging();
+app.LogStartupInfo(builder);
 
 /* MIDDLEWARE SECTION */
 // see middleware order at https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0#middleware-order
@@ -119,6 +109,7 @@ app.MapFallback(async context => { await context.Response.WriteAsync("Page not f
 // log all endpoints
 app.Lifetime.ApplicationStarted.Register(() =>
 {
+    ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
     using IServiceScope scope = app.Services.CreateScope();
     EndpointDataSource dataSource = scope.ServiceProvider.GetRequiredService<EndpointDataSource>();
     IServer kestrelServer = scope.ServiceProvider.GetRequiredService<IServer>();
