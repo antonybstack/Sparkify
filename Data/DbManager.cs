@@ -14,6 +14,7 @@ public static class DbManager
 {
     private const string Name = "Sparkify";
     private static readonly string[] s_connectionStrings = { "http://127.0.0.1:8888" };
+    private static readonly string[] s_connectionStrings = { "http://192.168.1.200:8888" };
 
     /// The use of “Lazy” ensures that the document store is only created once
     /// without you having to worry about double locking or explicit thread safety issues
@@ -44,6 +45,7 @@ public static class DbManager
         try
         {
             httpClient.GetAsync("http://127.0.0.1:8888").Wait();
+            httpClient.GetAsync("http://192.168.1.200:8888").Wait();
         }
         catch (Exception ex)
         {
@@ -58,6 +60,7 @@ public static class DbManager
         try
         {
             client.Connect("127.0.0.1", 38888);
+            client.Connect("192.168.1.200", 38888);
         }
         catch (SocketException ex)
         {
