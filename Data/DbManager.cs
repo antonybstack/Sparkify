@@ -1,25 +1,21 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Operations.Refresh;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Database;
+using Raven.Client.Http;
 using Raven.Client.ServerWide;
 using Raven.Client.ServerWide.Operations;
 
-namespace Data;
+namespace Sparkify;
 
 public static class DbManager
 {
-    private const string Name = "Sparkify";
-    private static readonly string[] s_connectionStrings = { "http://192.168.1.200:8888" };
-
-    /// The use of “Lazy” ensures that the document store is only created once
-    /// without you having to worry about double locking or explicit thread safety issues
-    private static readonly Lazy<IDocumentStore> s_store = new(CreateStore);
-
-    public static IDocumentStore Store => s_store.Value;
+    public static DocumentStore Store { get; private set; }
 
     /// <summary>
     ///     The DocumentStoreHolder class holds a single instance of the Document Store object that will be used across
@@ -35,15 +31,23 @@ public static class DbManager
     ///     - Export & Import database data.
     /// </summary>
     /// <returns>An <see cref="IDocumentStore" /> to further customize the added endpoints.</returns>
-    private static IDocumentStore CreateStore()
+    public static void CreateStore(string databaseName, string httpUriString, string tcpHostName, int tcpPort)
     {
         // test interserver connections
-        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3), };
-        var client = new TcpClient { SendTimeout = 3000 };
+        var httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(3)
+        };
+        var client = new TcpClient
+        {
+            SendTimeout = 3000
+        };
 
         try
         {
-            httpClient.GetAsync("http://192.168.1.200:8888").Wait();
+            ArgumentNullException.ThrowIfNull(httpUriString);
+            var httpEndpoint = new Uri(httpUriString);
+            httpClient.GetAsync(httpEndpoint).Wait();
         }
         catch (Exception ex)
         {
@@ -57,7 +61,10 @@ public static class DbManager
 
         try
         {
-            client.Connect("192.168.1.200", 38888);
+            ArgumentNullException.ThrowIfNull(tcpHostName);
+            ArgumentNullException.ThrowIfNull(tcpPort);
+            var tcpEndPoint = new IPEndPoint(IPAddress.Parse(tcpHostName), tcpPort);
+            client.Connect(tcpEndPoint);
         }
         catch (SocketException ex)
         {
@@ -69,10 +76,13 @@ public static class DbManager
             client.Dispose();
         }
 
-        IDocumentStore store = new DocumentStore
+        Store = new DocumentStore
         {
             // Define the cluster node URLs (required)
-            Urls = s_connectionStrings,
+            Urls = new[]
+            {
+                httpUriString
+            },
 
             // Set conventions as necessary (optional)
             Conventions =
@@ -81,28 +91,40 @@ public static class DbManager
                 /* If any of the documents has changed while the code is running
                 a concurrency exception will be raised and the whole transaction will be aborted. */
                 UseOptimisticConcurrency = false,
+                AggressiveCache =
+                {
+                    // Cache documents for 5 minutes
+                    Duration = TimeSpan.FromDays(1),
+                    // Maximum total size of cached items is 1 GB
+                    Mode = AggressiveCacheMode.TrackChanges
+                },
+                HttpVersion = HttpVersion.Version30
             },
-
             // Define a default database (optional)
-            Database = Name
+            Database = databaseName
+        };
 
-            // Initialize the Document Store
-        }.Initialize();
-        store.SetRequestTimeout(TimeSpan.FromSeconds(1));
+        Store.Initialize();
 
-        if (!DatabaseExists(store))
+        Store.SetRequestTimeout(TimeSpan.FromSeconds(3));
+
+        if (!DatabaseExists(Store))
         {
             try
             {
-                var database = new DatabaseRecord(Name);
-                store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
+                var database = new DatabaseRecord(databaseName);
+                Store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
+
+                Store.Maintenance.Send(new ConfigureRefreshOperation(new RefreshConfiguration
+                {
+                    Disabled = false
+                }));
             }
             catch (ConcurrencyException ex)
             {
-                Debug.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
+                Debug.WriteLine($"Attempted to create DB '{databaseName}'. Exception: {ex.Message}");
             }
         }
-
 
         // var a1 = store.Maintenance.Send(new GetDetailedStatisticsOperation());
         // var a2 = store.Maintenance.Send(new GetStatisticsOperation());
@@ -123,13 +145,13 @@ public static class DbManager
         - When disabled, normal cache validation will occur, which means that the client
         will always check with the server to see if the data has changed, and the server
         will respond with a 304 if the data has not changed. This is the default behavior. */
-        store.AggressivelyCache();
+        Store.AggressivelyCache();
 
-        DataGenerator.SeedUsers(store).Wait();
+        // store.SeedUsers().Wait();
 
-        IndexCreation.CreateIndexes(typeof(DbManager).Assembly, store);
+        Store.SetRequestTimeout(TimeSpan.FromSeconds(30));
 
-        return store;
+        IndexCreation.CreateIndexes(typeof(DbManager).Assembly, Store);
     }
 
     private static bool DatabaseExists(IDocumentStore documentStore)
@@ -143,7 +165,9 @@ public static class DbManager
         {
             return false;
         }
-        catch (Exception ex) when (ex is RavenException || ex is TimeoutException || ex.InnerException is HttpRequestException)
+        catch (Exception ex) when (ex is RavenException ||
+                                   ex is TimeoutException ||
+                                   ex.InnerException is HttpRequestException)
         {
             Debug.WriteLine(ex);
             throw;
