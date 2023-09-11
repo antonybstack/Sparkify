@@ -3,31 +3,29 @@
 
 using Bogus;
 using Raven.Client.Documents;
-using Raven.Client.Documents.BulkInsert;
-using Raven.Client.Documents.Session;
 
-namespace Data;
+namespace Sparkify;
 
 /// See Bogus docs for more info: https://github.com/bchavez/Bogus
 public static class DataGenerator
 {
-    public static async Task SeedUsers(IDocumentStore s)
+    public static async Task SeedUsers(this IDocumentStore store)
     {
-        using IAsyncDocumentSession session = s.OpenAsyncSession();
-        if (await session.Query<User>().AnyAsync())
+        using var session = store.OpenAsyncSession();
+        if (await session.Query<Blog>().AnyAsync())
         {
             return;
         }
 
         Randomizer.Seed = new Random(new DateTime(2023, 7, 23).ToUniversalTime().GetHashCode());
 
-        List<User>? users = new Faker<User>()
-            .RuleFor(u => u.FirstName, f => f.Name.FirstName())
-            .RuleFor(u => u.LastName, f => f.Name.LastName())
+        var users = new Faker<Blog>()
+            .RuleFor(u => u.Title, f => f.Lorem.Sentence(10))
+            .RuleFor(u => u.Description, f => f.Lorem.Sentence(20))
             .Generate(1000);
 
-        BulkInsertOperation? bulkInsert = s.BulkInsert();
-        foreach (User user in users)
+        var bulkInsert = store.BulkInsert();
+        foreach (var user in users)
         {
             await bulkInsert.StoreAsync(user);
         }
