@@ -2,6 +2,8 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using Data;
+using Common.Configuration;
+using Common.Observability;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Json;
@@ -13,6 +15,10 @@ using Sparkify.Observability;
 
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
 ServicePointManager.DefaultConnectionLimit = 10000;
+
+var appOptions = builder.AddConfigAndValidate<ApiOptions, ValidateApiOptions>();
+var databaseOptions = builder.AddConfigAndValidate<DatabaseOptions, ValidateDatabaseOptions>();
+var otlpOptions = builder.AddConfigAndValidate<OtlpOptions, ValidateOtlpOptions>();
 
 builder.WebHost
 .UseQuic()
