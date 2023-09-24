@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Data", "Data\Data.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmarking", "Benchmarking\Benchmarking.csproj", "{705317F8-EB6E-42B5-B29E-E6C5E794927F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "otel", "otel\otel.csproj", "{4F40378D-1DC9-4966-B73D-F7144A18BB71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FeedProcessor", "FeedProcessor\FeedProcessor.csproj", "{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,5 +33,13 @@ Global
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

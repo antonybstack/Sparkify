@@ -1,25 +1,26 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using Raven.Client.Documents;
-using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Database;
 using Raven.Client.ServerWide;
 using Raven.Client.ServerWide.Operations;
 
-namespace Data;
+namespace Sparkify;
 
 public static class DbManager
 {
     private const string Name = "Sparkify";
-    private static readonly string[] s_connectionStrings = { "http://192.168.1.200:8888" };
+    private static readonly Uri httpEndpoint = new ("http://192.168.1.200:8888");
+    private static readonly IPEndPoint tcpEndPoint = new(IPAddress.Parse("192.168.1.200"), 38888);
 
     /// The use of “Lazy” ensures that the document store is only created once
     /// without you having to worry about double locking or explicit thread safety issues
-    private static readonly Lazy<IDocumentStore> s_store = new(CreateStore);
+    private static readonly Lazy<IDocumentStore> InternalStore = new(CreateStore);
 
-    public static IDocumentStore Store => s_store.Value;
+    public static IDocumentStore Store => InternalStore.Value;
 
     /// <summary>
     ///     The DocumentStoreHolder class holds a single instance of the Document Store object that will be used across
@@ -38,12 +39,12 @@ public static class DbManager
     private static IDocumentStore CreateStore()
     {
         // test interserver connections
-        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3), };
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
         var client = new TcpClient { SendTimeout = 3000 };
 
         try
         {
-            httpClient.GetAsync("http://192.168.1.200:8888").Wait();
+            httpClient.GetAsync(httpEndpoint).Wait();
         }
         catch (Exception ex)
         {
@@ -57,7 +58,7 @@ public static class DbManager
 
         try
         {
-            client.Connect("192.168.1.200", 38888);
+            client.Connect(tcpEndPoint);
         }
         catch (SocketException ex)
         {
@@ -69,10 +70,10 @@ public static class DbManager
             client.Dispose();
         }
 
-        IDocumentStore store = new DocumentStore
+        var store = new DocumentStore
         {
             // Define the cluster node URLs (required)
-            Urls = s_connectionStrings,
+            Urls = new[] { httpEndpoint.ToString() },
 
             // Set conventions as necessary (optional)
             Conventions =
@@ -85,10 +86,11 @@ public static class DbManager
 
             // Define a default database (optional)
             Database = Name
+        };
 
-            // Initialize the Document Store
-        }.Initialize();
-        store.SetRequestTimeout(TimeSpan.FromSeconds(1));
+        store.Initialize();
+
+        store.SetRequestTimeout(TimeSpan.FromSeconds(3));
 
         if (!DatabaseExists(store))
         {
@@ -102,7 +104,6 @@ public static class DbManager
                 Debug.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
             }
         }
-
 
         // var a1 = store.Maintenance.Send(new GetDetailedStatisticsOperation());
         // var a2 = store.Maintenance.Send(new GetStatisticsOperation());
@@ -125,9 +126,11 @@ public static class DbManager
         will respond with a 304 if the data has not changed. This is the default behavior. */
         store.AggressivelyCache();
 
-        DataGenerator.SeedUsers(store).Wait();
+        store.SeedUsers().Wait();
 
-        IndexCreation.CreateIndexes(typeof(DbManager).Assembly, store);
+        // IndexCreation.CreateIndexes(typeof(DbManager).Assembly, store);
+
+        store.SetRequestTimeout(TimeSpan.FromSeconds(15));
 
         return store;
     }
@@ -143,7 +146,9 @@ public static class DbManager
         {
             return false;
         }
-        catch (Exception ex) when (ex is RavenException || ex is TimeoutException || ex.InnerException is HttpRequestException)
+        catch (Exception ex) when (ex is RavenException ||
+                                   ex is TimeoutException ||
+                                   ex.InnerException is HttpRequestException)
         {
             Debug.WriteLine(ex);
             throw;

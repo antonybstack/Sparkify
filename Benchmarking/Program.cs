@@ -47,7 +47,7 @@ var scenario1 = Scenario.Create("server_sent_scenario", async context =>
             await using var stream = await response!.Payload.Value.Content.ReadAsStreamAsync();
             using var reader = new StreamReader(stream, Encoding.UTF8);
 
-            char[] buffer = new char[1024];
+            var buffer = new char[1024];
             while (!cts.IsCancellationRequested && !reader.EndOfStream)
             {
                 await reader.ReadAsync(buffer, 0, buffer.Length);

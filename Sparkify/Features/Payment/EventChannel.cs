@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using System.Threading.Tasks.Dataflow;
-using Data;
 
 namespace Sparkify.Features.Payment;
 
@@ -18,21 +17,21 @@ public interface IEventChannel
     IAsyncEnumerable<PaymentEvent> ReadAllAsync(string clientId, CancellationToken ct);
 }
 
-internal class EventChannel : IEventChannel
+internal sealed class EventChannel : IEventChannel
 {
-    private readonly ConcurrentDictionary<string, Channel<PaymentEvent>> _clientChannels = new();
+    private readonly ConcurrentDictionary<string, Channel<PaymentEvent>> ClientChannels = new();
 
     public Channel<PaymentEvent> RegisterClient(string clientId)
     {
         var channel = Channel.CreateUnbounded<PaymentEvent>();
-        _clientChannels[clientId] = channel;
+        ClientChannels[clientId] = channel;
         return channel;
     }
 
     public bool UnregisterClient(string clientId)
     {
         // get the channel for the client, dispose, and remove it
-        if (_clientChannels.TryRemove(clientId, out var channel))
+        if (ClientChannels.TryRemove(clientId, out var channel))
         {
             channel.Writer.Complete();
             return true;
@@ -42,7 +41,7 @@ internal class EventChannel : IEventChannel
 
     public async Task BroadcastAsync(PaymentEvent paymentEvent)
     {
-        foreach (var channel in _clientChannels.Values)
+        foreach (var channel in ClientChannels.Values)
         {
             try
             {
@@ -55,9 +54,10 @@ internal class EventChannel : IEventChannel
         }
     }
 
-    public async IAsyncEnumerable<PaymentEvent> ReadAllAsync(string clientId, [EnumeratorCancellation] CancellationToken ct)
+    public async IAsyncEnumerable<PaymentEvent> ReadAllAsync(string clientId,
+        [EnumeratorCancellation] CancellationToken ct)
     {
-        if (_clientChannels.TryGetValue(clientId, out var channel))
+        if (ClientChannels.TryGetValue(clientId, out var channel))
         {
             while (await channel.Reader.WaitToReadAsync(ct))
             {
@@ -72,20 +72,16 @@ internal class EventChannel : IEventChannel
 
 public class ClientManager
 {
-    private readonly BroadcastBlock<PaymentEvent> _broadcastBlock;
+    private readonly BroadcastBlock<PaymentEvent> BroadcastBlock;
 
     public ClientManager()
     {
-        _broadcastBlock = new BroadcastBlock<PaymentEvent>(paymentEvent => paymentEvent);
+        BroadcastBlock = new BroadcastBlock<PaymentEvent>(paymentEvent => paymentEvent);
     }
 
-    public void Subscribe(ITargetBlock<PaymentEvent> target)
-    {
-        _broadcastBlock.LinkTo(target);
-    }
+    public void Subscribe(ITargetBlock<PaymentEvent> target) =>
+        BroadcastBlock.LinkTo(target);
 
-    public void Broadcast(PaymentEvent paymentEvent)
-    {
-        _broadcastBlock.Post(paymentEvent);
-    }
+    public void Broadcast(PaymentEvent paymentEvent) =>
+        BroadcastBlock.Post(paymentEvent);
 }

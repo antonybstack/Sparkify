@@ -3,24 +3,46 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using Raven.Client.Documents.Changes;
 
-namespace Data;
+namespace Sparkify;
+
+public sealed class Blog : IEntity
+{
+    public string? Company { get; set; }
+    public string? Link { get; set; }
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string Id { get; init; }
+}
+
+public sealed record Article : IEntity
+{
+    public string BlogId { get; init; }
+    public string Link { get; set; }
+    public ICollection<string>? Authors { get; set; }
+    public string? Title { get; set; }
+    public DateTime? Date { get; set; }
+    public string Uid { get; set; }
+    public ICollection<string>? Categories { get; set; }
+    public string? Content { get; set; }
+    // [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string Id { get; init; }
+}
 
 public class User : IEntity
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [DefaultValue(null)]
-    public string Id { get; init; }
     public string FirstName { get; init; }
     public string LastName { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), DefaultValue(null)]
+    public string Id { get; init; }
 }
 
 public record PaymentEvent : IEvent
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [DefaultValue(null)]
-    public string Id { get; init; }
     [DefaultValue(1000)]
     public int Amount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), DefaultValue(null)]
+    public string Id { get; init; }
     [DefaultValue(nameof(EventType.PaymentRequested))]
     public EventType EventType { get; init; }
     public string ReferenceId { get; init; }
@@ -69,18 +91,14 @@ public enum EventType
 
 public class IndexChangeObserver : IObserver<IndexChange>
 {
-    public void OnCompleted()
-    {
+    public void OnCompleted() =>
         Debug.WriteLine("All changes have been processed.");
-    }
 
     public void OnError(Exception error)
     {
         // Handle any errors.
     }
 
-    public void OnNext(IndexChange change)
-    {
+    public void OnNext(IndexChange change) =>
         Debug.WriteLine($"Index {change.Name} has changed. Type of change: {change.Type}");
-    }
 }

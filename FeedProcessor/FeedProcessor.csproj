@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Sparkify</RootNamespace>
+    <EnablePreviewFeatures>True</EnablePreviewFeatures>
+    <UserSecretsId>dotnet-BlogFeedProcessor-595f736b-52f2-4cbc-b823-883d00831140</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.53" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0-rc.1.23419.4" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.0-rc.1.23421.29" />
+    <PackageReference Include="Nanoid" Version="3.0.0"/>
+    <PackageReference Include="RavenDB.Client" Version="5.4.110" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0-rc.1.23419.4" />
+    <PackageReference Include="CodeHollow.FeedReader" Version="1.2.6"/>
+    <PackageReference Include="RavenDB.Client" Version="5.4.109"/>
+    <PackageReference Include="System.IO.Hashing" Version="8.0.0-rc.1.23419.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Data\Data.csproj"/>
+  </ItemGroup>
+
+
+</Project>

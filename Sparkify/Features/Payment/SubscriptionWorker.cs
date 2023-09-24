@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using Data;
-using Raven.Client.Documents;
 using Raven.Client.Documents.Subscriptions;
 using Raven.Client.Exceptions.Database;
 using Raven.Client.Exceptions.Documents.Subscriptions;
@@ -8,40 +6,41 @@ using Raven.Client.Exceptions.Security;
 
 namespace Sparkify.Features.Payment;
 
-public class SubscriptionWorker(IDocumentStore store, IEventChannel channel) : BackgroundService
+public sealed class SubscriptionWorker(IEventChannel channel) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await store.Subscriptions.GetSubscriptionStateAsync("PaymentEventsSubscription", token: stoppingToken);
+            await DbManager.Store.Subscriptions.GetSubscriptionStateAsync("PaymentEventsSubscription",
+                token: stoppingToken);
         }
         catch (SubscriptionDoesNotExistException)
         {
-            await store.Subscriptions.CreateAsync(new SubscriptionCreationOptions<PaymentEvent>
-            {
-                Name = "PaymentEventsSubscription",
-            }, token: stoppingToken);
+            await DbManager.Store.Subscriptions.CreateAsync(
+                new SubscriptionCreationOptions<PaymentEvent> { Name = "PaymentEventsSubscription" },
+                token: stoppingToken);
         }
 
-        var subscription = store.Subscriptions.GetSubscriptionWorker<PaymentEvent>(
+        var subscription = DbManager.Store.Subscriptions.GetSubscriptionWorker<PaymentEvent>(
             new SubscriptionWorkerOptions("PaymentEventsSubscription")
             {
                 Strategy = SubscriptionOpeningStrategy.TakeOver,
                 TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(1),
                 MaxErroneousPeriod = TimeSpan.FromSeconds(5)
             });
-        subscription.OnUnexpectedSubscriptionError += exception => Debug.WriteLine(exception.Message);
+        subscription.OnUnexpectedSubscriptionError += static exception => Debug.WriteLine(exception.Message);
 
         try
         {
             await subscription.Run(async batch =>
-            {
-                foreach (var item in batch.Items)
                 {
-                    await channel.BroadcastAsync(item.Result);
-                }
-            }, stoppingToken).ConfigureAwait(false);
+                    foreach (var item in batch.Items)
+                    {
+                        await channel.BroadcastAsync(item.Result);
+                    }
+                },
+                stoppingToken);
         }
         catch (SubscriptionClosedException e)
         {
@@ -55,7 +54,9 @@ public class SubscriptionWorker(IDocumentStore store, IEventChannel channel) : B
                 e is SubscriptionDoesNotExistException ||
                 e is SubscriptionInvalidStateException ||
                 e is AuthorizationException)
+            {
                 throw;
+            }
 
             if (e is SubscriberErrorException)
             {
