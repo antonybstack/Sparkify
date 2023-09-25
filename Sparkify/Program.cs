@@ -1,7 +1,6 @@
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
-using Data;
 using Common.Configuration;
 using Common.Observability;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -41,6 +40,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
 builder.RegisterOpenTelemetry();
 builder.RegisterSerilog();
+builder.RegisterOpenTelemetry(otlpOptions);
+builder.RegisterSerilog(otlpOptions);
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
 builder.Services.TryAddSingleton(DbManager.Store);
 builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
