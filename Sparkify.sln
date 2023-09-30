@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 #
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify", "Sparkify\Sparkify.csproj", "{D8982147-802E-4235-99EF-81618634BAEF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify.Proxy", "Sparkify.Proxy\Sparkify.Proxy.csproj", "{302F1284-751A-427E-9FED-FFC36107F6D0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Data", "Data\Data.csproj", "{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Data", "Data\Data.csproj", "{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}"
 EndProject
