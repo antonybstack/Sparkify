@@ -37,9 +37,13 @@ builder.Services.AddHttpsRedirection(options => options.HttpsPort = 6002);
 builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin()));
 builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
-builder.RegisterOpenTelemetry();
-builder.RegisterSerilog();
+builder.Services.AddOpenApiDocument();
+
+// builder.Services.AddSwaggerGen(c =>
+// {
+//     c.UseInlineDefinitionsForEnums();
+//     // c.AddMissingSchemas();
+// });
 builder.RegisterOpenTelemetry(otlpOptions);
 builder.RegisterSerilog(otlpOptions);
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
