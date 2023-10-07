@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Nager.PublicSuffix;
 using Raven.Client.Documents;
 using Common;
+using SkiaSharp;
+using Svg.Skia;
 
 namespace Sparkify.Features.BlogFeatures;
 
@@ -15,6 +17,94 @@ internal static class ApiEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         var routeGroup = endpoints.MapGroup("api/blog");
+
+        routeGroup.MapDelete("blogs/{id}/image/{name}",
+            static async Task<Results<NoContent, NotFound, ProblemHttpResult>> (string id, string name) =>
+            {
+                using var session = DbManager.Store.OpenAsyncSession();
+
+                var attachment = await session.Advanced.Attachments.GetAsync($"blogs/{id}", name);
+                if (attachment is null)
+                {
+                    return TypedResults.NotFound();
+                }
+                session.Advanced.Attachments.Delete($"blogs/{id}", name);
+                await session.SaveChangesAsync();
+                return TypedResults.NoContent();
+            });
+
+        routeGroup.MapPut("blogs/{id}/image/{name}/set",
+            static async Task<Results<NoContent, NotFound, ProblemHttpResult>> (string id, string name) =>
+            {
+                using var session = DbManager.Store.OpenAsyncSession();
+
+                var blog = await session.LoadAsync<Blog>($"blogs/{id}");
+                session.Advanced.GetMetadataFor(blog)["logo"] = name;
+                await session.SaveChangesAsync();
+                return TypedResults.NoContent();
+            });
+
+        routeGroup.MapPost("blogs/{id}/image/upload",
+                async Task<IActionResult> (string id, IFormFile filee) =>
+                {
+                    using var session = DbManager.Store.OpenAsyncSession();
+
+                    var blog = await session.LoadAsync<Blog>($"blogs/{id}");
+                    var fileStream = filee.OpenReadStream();
+
+                    var ms = new MemoryStream();
+                    // get type
+                    var fileType = filee.ContentType;
+
+                    if (fileType.Contains("svg", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        var fileBytes = new byte[fileStream.Length];
+                        await fileStream.ReadExactlyAsync(fileBytes);
+                        ms.Write(Svg2Png(fileBytes));
+                    }
+                    else
+                    {
+                        var image = SKImage.FromBitmap(SKBitmap.Decode(fileStream));
+                        image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
+                    }
+                    ms.Position = 0;
+                    var fileName = $"{Ulid.NewUlid()}.png";
+                    session.Advanced.Attachments.Store(blog, fileName, ms, "image/png");
+                    session.Advanced.GetMetadataFor(blog)["logo"] = fileName;
+                    await session.SaveChangesAsync();
+                    return new OkObjectResult(new
+                    {
+                        fileName
+                    });
+                })
+            .DisableAntiforgery();
+
+        routeGroup.MapPut("blogs/cleanupimages",
+            static async Task<Results<NoContent, NotFound, ProblemHttpResult>> () =>
+            {
+                using var session = DbManager.Store.OpenAsyncSession();
+
+                // get all blogs, get all attachment names, remove all attachments not reference by meta data "logo"
+                var blogs = await session.Advanced.AsyncDocumentQuery<Blog>()
+                    .ToArrayAsync();
+                foreach (var blog in blogs)
+                {
+                    var attachments = session.Advanced.Attachments.GetNames(blog);
+                    if (!session.Advanced.GetMetadataFor(blog).TryGetValue("logo", out var logo))
+                    {
+                        continue;
+                    }
+                    foreach (var attachment in attachments)
+                    {
+                        if (attachment.Name != logo)
+                        {
+                            session.Advanced.Attachments.Delete(blog, attachment.Name);
+                        }
+                    }
+                    await session.SaveChangesAsync();
+                }
+                return TypedResults.NoContent();
+            });
 
         routeGroup.MapPost("/",
                 static async Task<Results<Ok<Payload<Blog>>, NoContent, ProblemHttpResult>> (HttpContext context,
@@ -129,7 +219,56 @@ internal static class ApiEndpointRouteBuilderExtensions
                 return await next(context);
             });
 
+        routeGroup.MapPost("/FixBlogAttachments",
+            async static () =>
+            {
+                using var session = DbManager.Store.OpenAsyncSession();
+                var blogs = await session.Advanced.AsyncDocumentQuery<Blog>()
+                    .ToArrayAsync();
+
+                foreach (var blog in blogs)
+                {
+                    var attachments = session.Advanced.Attachments.GetNames(blog);
+                    foreach (var attachment in attachments)
+                    {
+                        if (attachment.Name.Contains(".png", StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            continue;
+                        }
+                        session.Advanced.Attachments.Rename(blog, attachment.Name, $"{attachment.Name}.png");
+                    }
+                }
+                await session.SaveChangesAsync();
+            });
+
         return routeGroup;
     }
 
+    public static byte[] Svg2Png(byte[] svgArray)
+    {
+        using (var svg = new Svg.Skia.SKSvg())
+        using (var svgStream = new MemoryStream(svgArray))
+        {
+            if (svg.Load(svgStream) is not null)
+            {
+                using (var stream = new MemoryStream())
+                {
+                    svg.Picture.ToImage(stream,
+                        SKColors.Empty,
+                        SKEncodedImageFormat.Png,
+                        100,
+                        1f,
+                        1f,
+                        SKImageInfo.PlatformColorType,
+                        SKAlphaType.Unpremul,
+                        SKColorSpace.CreateRgb(SKColorSpaceTransferFn.Srgb, SKColorSpaceXyz.Srgb));
+                    return stream.ToArray();
+                }
+            }
+            else
+            {
+                throw new Exception("Failed to convert to png");
+            }
+        }
+    }
 }
