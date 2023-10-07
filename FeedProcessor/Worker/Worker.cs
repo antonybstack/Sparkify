@@ -29,12 +29,7 @@ public sealed class Worker(ILogger<Worker> logger) : IHostedLifecycleService
         }
 
         SubscriptionWorker = DbManager.Store.Subscriptions.GetSubscriptionWorker<Blog>(
-            new SubscriptionWorkerOptions(BlogsSubscription)
-            {
-                Strategy = SubscriptionOpeningStrategy.Concurrent,
-                TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(1),
-                MaxErroneousPeriod = TimeSpan.FromSeconds(5)
-            });
+            new SubscriptionWorkerOptions(BlogsSubscription) { Strategy = SubscriptionOpeningStrategy.Concurrent, TimeToWaitBeforeConnectionRetry = TimeSpan.FromSeconds(1), MaxErroneousPeriod = TimeSpan.FromSeconds(5) });
         SubscriptionWorker.OnUnexpectedSubscriptionError += exception => Debug.WriteLine(exception.Message);
     }
 
@@ -50,6 +45,7 @@ public sealed class Worker(ILogger<Worker> logger) : IHostedLifecycleService
                     {
                         if (item.Metadata.ContainsKey(Constants.Documents.Metadata.Refresh))
                         {
+                            logger.LogInformation("Processing {Title}: {Link}", item.Result.Title, item.Result.Link);
                             continue;
                         }
                         await Processor.Blog(item.Result, cancellationToken);

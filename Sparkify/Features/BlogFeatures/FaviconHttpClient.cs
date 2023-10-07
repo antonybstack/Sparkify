@@ -9,47 +9,116 @@ public sealed class FaviconHttpClient(HttpClient httpClient)
 {
     private static readonly HtmlWeb HtmlWeb = new();
 
-    public async Task<ICollection<FaviconPacket>> GetFaviconDataStreamPackets(Uri uri)
+    public async IAsyncEnumerable<FaviconPacket> GetFaviconDataStreamPackets(Uri uri)
+    {
+        var faviconUrls = ExtractAllFaviconNodes(uri);
+        if (faviconUrls.Count is 0)
+        {
+            yield break;
+        }
+
+        var tasks = faviconUrls.Select(GetFaviconData).ToList();
+
+        while (tasks.Count > 0)
+        {
+            var completedTask = await Task.WhenAny(tasks);
+            tasks.Remove(completedTask);
+
+            var result = await completedTask;
+            if (result.HasValue)
+            {
+                yield return result.Value;
+            }
+        }
+    }
+
+    private async Task<FaviconPacket?> GetFaviconData(Uri faviconUrl)
     {
         try
         {
-            var faviconUrls = ExtractAllFaviconNodes(uri);
-            if (faviconUrls.Count is 0)
-            {
-                return Array.Empty<FaviconPacket>();
-            }
-
-            var tasks = faviconUrls.Select(async faviconUrl =>
-            {
-                try
-                {
-                    byte[] stream = await httpClient.GetByteArrayAsync(faviconUrl);
-                    var image = SKImage.FromBitmap(SKBitmap.Decode(stream));
-                    // if image null, then return
-                    var ms = new MemoryStream();
-                    image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
-                    ms.Position = 0;
-                    return new FaviconPacket(
-                        $"logo-{Ulid.NewUlid()}",
-                        image.Width * image.Height,
-                        ms);
-                }
-                catch (Exception)
-                {
-                    return new FaviconPacket(
-                        $"logo-{Ulid.NewUlid()}.png",
-                        0,
-                        new MemoryStream());
-                }
-            });
-
-            return await Task.WhenAll(tasks);
+            byte[] stream = await httpClient.GetByteArrayAsync(faviconUrl);
+            var image = SKImage.FromBitmap(SKBitmap.Decode(stream));
+            // if image null, then return
+            var ms = new MemoryStream();
+            image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
+            ms.Position = 0;
+            return new FaviconPacket(
+                $"{Ulid.NewUlid()}.png",
+                image.Width * image.Height,
+                ms);
         }
         catch (Exception)
         {
-            return Array.Empty<FaviconPacket>();
+            return null; // return null on exception
         }
     }
+
+    // public async Task<ICollection<FaviconPacket>> GetFaviconDataStreamPackets(Uri uri)
+    // {
+    //     try
+    //     {
+    //         var faviconUrls = ExtractAllFaviconNodes(uri);
+    //         if (faviconUrls.Count is 0)
+    //         {
+    //             return Array.Empty<FaviconPacket>();
+    //         }
+    //
+    //         var tasks = new List<Task<FaviconPacket?>>();
+    //         foreach (var faviconUrl in faviconUrls)
+    //         {
+    //             tasks.Add(GetFaviconData(faviconUrl));
+    //         }
+    //
+    //         var results = await Task.WhenAll(tasks);
+    //         return results.Where(packet => packet.HasValue).Select(packet => packet.Value).ToList();
+    //     }
+    //     catch (Exception)
+    //     {
+    //         return Array.Empty<FaviconPacket>();
+    //     }
+    // }
+
+    // public async Task<ICollection<FaviconPacket>> GetFaviconDataStreamPackets(Uri uri)
+    // {
+    //     try
+    //     {
+    //         var faviconUrls = ExtractAllFaviconNodes(uri);
+    //         if (faviconUrls.Count is 0)
+    //         {
+    //             return Array.Empty<FaviconPacket>();
+    //         }
+    //
+    //         var tasks = faviconUrls.Select(async faviconUrl =>
+    //         {
+    //             try
+    //             {
+    //                 byte[] stream = await httpClient.GetByteArrayAsync(faviconUrl);
+    //                 var image = SKImage.FromBitmap(SKBitmap.Decode(stream));
+    //                 // if image null, then return
+    //                 var ms = new MemoryStream();
+    //                 image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
+    //                 ms.Position = 0;
+    //                 return new FaviconPacket(
+    //                     $"{Ulid.NewUlid()}.png",
+    //                     image.Width * image.Height,
+    //                     ms);
+    //             }
+    //             catch (Exception)
+    //             {
+    //                 return new FaviconPacket(
+    //                     $"{Ulid.NewUlid()}.png",
+    //                     0,
+    //                     new MemoryStream());
+    //             }
+    //         });
+    //
+    //         return await Task.WhenAll(tasks);
+    //     }
+    //     catch (Exception)
+    //     {
+    //         return Array.Empty<FaviconPacket>();
+    //     }
+    // }
 
     private static ICollection<Uri> ExtractAllFaviconNodes(Uri domain)
     {

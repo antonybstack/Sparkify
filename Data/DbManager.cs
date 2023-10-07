@@ -5,6 +5,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Database;
+using Raven.Client.Http;
 using Raven.Client.ServerWide;
 using Raven.Client.ServerWide.Operations;
 
@@ -13,7 +14,7 @@ namespace Sparkify;
 public static class DbManager
 {
     private const string Name = "Sparkify";
-    private static readonly Uri httpEndpoint = new ("http://192.168.1.200:8888");
+    private static readonly Uri httpEndpoint = new("http://192.168.1.200:8888");
     private static readonly IPEndPoint tcpEndPoint = new(IPAddress.Parse("192.168.1.200"), 38888);
 
     /// The use of “Lazy” ensures that the document store is only created once
@@ -82,6 +83,15 @@ public static class DbManager
                 /* If any of the documents has changed while the code is running
                 a concurrency exception will be raised and the whole transaction will be aborted. */
                 UseOptimisticConcurrency = false,
+                AggressiveCache =
+                {
+                    // Cache documents for 5 minutes
+                    Duration = TimeSpan.FromDays(1),
+                    // Maximum total size of cached items is 1 GB
+                    Mode = AggressiveCacheMode.TrackChanges
+                },
+                UseCompression = true,
+                HttpVersion = HttpVersion.Version30
             },
 
             // Define a default database (optional)

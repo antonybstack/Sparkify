@@ -1,191 +1,61 @@
 <script>
-    // import { writable } from "svelte/store";
-    // import { onMount } from "svelte";
-    //
-    // const account = writable({} as Account);
-    // const payments = writable([] as PaymentType[]);
-    //
-    // let eventSource: EventSource;
-    //
-    // onMount(() => {
-    //   eventSource = new EventSource(`https://localhost:6002/api/payment/sse`);
-    //   eventSource.addEventListener("account", function (event) {
-    //     console.log("Received account event: ", event);
-    //     account.set(JSON.parse(event.data));
-    //   });
-    //   eventSource.onmessage = function (event) {
-    //     if (event.data === "heartbeat") {
-    //       console.log("Received heartbeat from server");
-    //     } else {
-    //       console.log("Received message event: ", event);
-    //       var test = JSON.parse(event.data);
-    //       payments.update((data) => [JSON.parse(event.data), ...data]);
-    //     }
-    //   };
-    //
-    //   eventSource.onerror = function (error) {
-    //     console.error("EventSource failed:", error);
-    //     if (eventSource.readyState === EventSource.CLOSED) {
-    //       console.log("EventSource closed");
-    //       // retry connection
-    //       eventSource = new EventSource(`https://localhost:6002/api/payment/sse`);
-    //     }
-    //   };
-    // });
-    //
-    // async function postPayment() {
-    //   try {
-    //     const res = await fetch("https://localhost:6002/api/payment", {
-    //       method: "POST",
-    //       headers: {
-    //         "Content-Type": "application/json",
-    //       },
-    //       body: JSON.stringify({
-    //         id: null,
-    //         // random amount
-    //         amount: Math.floor(Math.random() * 1000),
-    //         eventType: "PaymentRequested",
-    //         referenceId: `${$account.Id}`,
-    //       }),
-    //     });
-    //
-    //     if (res.ok) {
-    //       console.log("Payment request succeeded: ", await res.json());
-    //     } else {
-    //       console.log("Payment request failed");
-    //     }
-    //   } catch (err) {
-    //     console.log("Payment request errored out: " + err);
-    //   }
-    // }
-    //
-    // class PaymentType {
-    //   Id: string;
-    //   Amount: number;
-    //   EventType: number;
-    //   ReferenceId: string;
-    //   constructor(
-    //     Id: string,
-    //     Amount: number,
-    //     EventType: number,
-    //     ReferenceId: string
-    //   ) {
-    //     this.Id = Id;
-    //     this.Amount = Amount;
-    //     this.EventType = EventType;
-    //     this.ReferenceId = ReferenceId;
-    //   }
-    // }
-    //
-    // class Account {
-    //   Id: string;
-    //   FullName: string;
-    //   Balance: number;
-    //   constructor(Id: string, FullName: string, Balance: number) {
-    //     this.Id = Id;
-    //     this.FullName = FullName;
-    //     this.Balance = Balance;
-    //   }
-    // }
-    // import {blur} from 'svelte/transition';
-
-    // async 함수 정의
-
-
-    // async function getPosts(query = "") {
-    //     // if (currentlySearching) {
-    //     //     pendingSearch = true;
-    //     //     lastQuery = query;
-    //     //     return lastPosts;
-    //     // }
-    //     // currentlySearching = true;
-    //
-    //     // if (timeout) {
-    //     //     pending = await new Promise(resolve => timeout = setTimeout(resolve, timeout));
-    //     // }
-    //     isLoading = true;
-    //
-    //     try {
-    //         const res = await fetch("https://localhost:6002/api/blog/search?query=" + query);
-    //         const data = (await res.json()).filter(x => x);
-    //         // check if posts is a list of objects or a list of strings
-    //         if (!data || data.length === 0) {
-    //             suggestions = [];
-    //             return lastPosts = [];
-    //         } else if (data[0].id) {
-    //             suggestions = [];
-    //             lastPosts = data.map((post) => {
-    //                 // console.log(post);
-    //                 return {
-    //                     id: post.id,
-    //                     title: post.title,
-    //                     // highlights: post.highlights,
-    //                     // first 100 characters of the content
-    //                     // body: post.content,
-    //                     link: post.link
-    //                 };
-    //             });
-    //
-    //         } else {
-    //             // combine list of strings into one string
-    //             suggestions = data;
-    //             lastPosts = [];
-    //         }
-    //     } catch (err) {
-    //         console.log("Search request errored out: " + err);
-    //         suggestions = [];
-    //         lastPosts = [];
-    //         throw err;
-    //     } finally {
-    //         isLoading = false;
-    //         // timeout = setTimeout(() => {
-    //         //     currentlySearching = false;
-    //         //     if (pendingSearch) {
-    //         //         pendingSearch = false; // Reset the flag
-    //         //         searchStore.set(lastQuery);
-    //         //     }
-    //         // }, 1000);
-    //         console.log("Search request completed request:" + lastQuery);
-    //     }
-    //     return lastPosts;
-    // }
-
-    import {writable} from "svelte/store";
-    import Search from "svelte-search";
-    import throttle from 'just-throttle';
     import debounce from 'just-debounce-it';
     import {onMount} from 'svelte';
+    import BlogPost from '../parts/blog-post.svelte';
 
-
-    async function filterResults(search1 = "") {
+    async function filterResults(search = "") {
         isLoading = true;
 
         try {
-            const res = await fetch("https://localhost/api/blog/search?query=" + search1);
-            const data = (await res.json()).filter(x => x);
+            // trim the search query
+            search = search.trim();
+            if (search !== "" && search === lastSearchQuery) {
+                return lastPosts;
+            }
+            lastSearchQuery = search;
+            // const res = await fetch("https://sparkify.dev/api/blog/search?query=" + search1);
+            let start = performance.now();
+            const res = await fetch("https://localhost/api/blog/search?query=" + search);
+            let end = performance.now();
+            totalDurationInMs = Math.round(end - start);
+
+            const payload = (await res.json());
+            if (payload.stats) {
+                serverDurationInMs = Math.max(0, payload.stats.durationInMs);
+                totalResults = payload.stats.totalResults;
+            } else {
+                serverDurationInMs = null;
+                totalResults = null;
+            }
             // check if posts is a list of objects or a list of strings
-            if (!data || data.length === 0) {
+            if (!payload.data || payload.data.length === 0) {
                 suggestions = [];
                 lastPosts = [];
-            } else if (data[0].id) {
+            } else if (payload.data[0].id) {
                 suggestions = [];
-                lastPosts = data.map((post) => {
+                lastPosts = payload.data.map((posts) => {
                     return {
-                        id: post.id,
-                        title: post.title,
-                        link: post.link
+                        id: posts.id,
+                        title: posts.title,
+                        link: posts.link,
+                        date: new Date(posts.date),
+                        categories: posts.categories,
+                        content: posts.content,
+                        blogId: posts.blogId,
+                        company: posts.company,
+                        logo: posts.logo
                     };
                 });
-
             } else {
-                // combine list of strings into one string
-                suggestions = data;
+                suggestions = payload.data;
                 lastPosts = [];
             }
         } catch (err) {
             console.log("Search request errored out: " + err);
             suggestions = [];
             lastPosts = [];
+            serverDurationInMs = null;
+            totalResults = null;
             throw err;
         } finally {
             isLoading = false;
@@ -193,12 +63,15 @@
         return lastPosts;
     }
 
-
     let currentlySearching = false;
     let pendingSearch = false;
     let isLoading = false;
     let searchQuery = '';
+    let lastSearchQuery = '';
     let lastPosts = [];
+    let serverDurationInMs = null;
+    let totalDurationInMs = null;
+    let totalResults = null;
     let suggestions = [];
     let timeout;
     let searchedPosts = Promise.resolve([]);
@@ -209,59 +82,60 @@
 
     const doSearch = debounce(() => {
         searchedPosts = filterResults(searchQuery);
-    }, 50, true);
-
+        // }, 50, true);
+    }, 100, true);
 </script>
 
 <div class="results-container">
-    <h1>Search</h1>
     <!--    https://github.com/OpenMined/PySyft/blob/8daa30a460b679585f4f6d0b9707bfc0110ca27a/packages/grid/frontend/src/routes/(app)/users/%2Bpage.svelte#L70-->
     <!--    <Search on:type={doSearch} bind:value={searchQuery}/>-->
-    <div id="search-input-cont">
+    <div id="search-input">
         <input type="search"
                id="search"
-               placeholder="Search Everything..."
+               placeholder="Search for anything..."
                autocomplete="off"
                bind:value={searchQuery}
                on:input={doSearch}/>
+        <div class="search-statistics">
+            {#if serverDurationInMs}
+                <span style="color: rgb(128 128 128 / 80%)">server: {serverDurationInMs} ms / total: {totalDurationInMs}
+                    ms</span>
+            {/if}
+        </div>
+    </div>
+    <!--  duration  -->
+    <!-- Total results -->
+    <div class="search-summary">
+        {#if totalResults}
+            <span style="color: rgb(128 128 128 / 80%)">{totalResults} articles
+                {#if searchQuery}matched{/if}</span>
+        {/if}
     </div>
     {#if suggestions.length > 0}
-        <p>Did you mean?</p>
-        {#each suggestions as suggestion}
-            <a href="#" on:click={() => searchQuery = suggestion}>{suggestion.title}</a>
-            <br>
-        {/each}
+        <div class="search-suggestions">
+
+            <p>Did you mean?</p>
+            {#each suggestions as suggestion}
+                <a on:click={() => {
+                    searchQuery = suggestion.title;
+                        doSearch();
+                }}>{suggestion.title}</a>
+                <br>
+            {/each}
+        </div>
     {/if}
     {#await searchedPosts}
         {#each lastPosts as post}
-            <div class="result-item">
-                <h2>{@html post.title}</h2>
-                <!--{#if post.body}-->
-                <!--    <p>{@html post.body}</p>-->
-                <!--{/if}-->
-                <!--{@html post.highlights[0]}-->
-                <br>
-                <a href="{post.link}">Read more</a>
-            </div>
+            <BlogPost post={post}/>
         {/each}
     {:then posts}
         {#each posts as post}
-            <div class="result-item">
-                <h2>{@html post.title}</h2>
-                <!--{#if post.body}-->
-                <!--    <p>{@html post.body}</p>-->
-                <!--{/if}-->
-                <!--{@html post.highlights[0]}-->
-                <br>
-                <a href="{post.link}">Read more</a>
-            </div>
+            <BlogPost post={post}/>
         {/each}
     {:catch error}
         <p style="color: rgb(128 128 128 / 80%)">The server is not responding.</p>
     {/await}
 </div>
-
-
 <style>
     .results-container {
         width: 80%;
@@ -273,62 +147,60 @@
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
-    h1 {
-        font-size: 24px;
-        margin-bottom: 20px;
-    }
 
-    form {
-        position: relative;
-        margin-bottom: 20px;
+    input[type="search"]::-webkit-search-cancel-button {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        margin-left: .4em;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23777'><path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/></svg>");
+        cursor: pointer;
     }
 
     input[type="search"] {
+        -webkit-appearance: none; /* For Safari and Chrome */
+        -moz-appearance: none; /* For Firefox */
+        appearance: none;
         width: 100%;
         font-size: 1.25rem;
-        padding: 0.75rem;
-        margin: 0.5rem 0;
-        border: 2px solid #e0e0e0;
+        padding: 0.5rem;
+        border: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
         border-radius: 0.25rem;
-        transition: border 0.4s;
+        /*transition: border 0.4s;*/
         background-color: #343434;
-        color: #ececec
+        color: #ececec;
+    }
+
+    #search-input {
+        margin: 0.5rem;
     }
 
     input[type="search"]:focus {
-        border: 2px solid #4285f4;
+        border: none;
+        outline: none;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.4);
     }
 
-
-    .result-item {
-        background-color: #2c2c2c;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    .search-statistics {
+        display: flex;
+        justify-content: flex-end;
+        margin: 4px 0 0 0;
+        gap: 0.8rem;
+        font-size: 0.8rem;
     }
 
-    .result-item h2 {
-        font-size: 20px;
-        margin-bottom: 10px;
+    .search-summary {
+        display: flex;
+        justify-content: flex-start;
+        margin: 6px;
+        font-size: 0.9rem;
     }
 
-    a {
-        color: #4285f4;
-        text-decoration: none;
-        transition: color 0.3s;
+    .search-suggestions a {
+        font-size: 1.2rem;
+        margin: .2rem 0;
+        display: inline-block;
     }
-
-    a:hover {
-        text-decoration: underline;
-    }
-
-    .result-item:hover {
-        background-color: #343434;
-    }
-
-    .result-item:last-child {
-        border-bottom: none;
-    }
-
 </style>

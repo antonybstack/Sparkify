@@ -16,11 +16,13 @@ using Sparkify.Observability;
 var builder = WebApplication.CreateBuilder(args);
 ServicePointManager.DefaultConnectionLimit = 10000;
 
+int port = builder.Environment.IsDevelopment() ? 6002 : 443;
+
 builder.WebHost
     .UseQuic()
     .UseKestrel(options =>
     {
-        options.ListenAnyIP(443,
+        options.ListenAnyIP(port,
             listenOptions =>
             {
                 listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
@@ -30,13 +32,14 @@ builder.WebHost
             });
     });
 
-builder.Services.AddHttpsRedirection(options => options.HttpsPort = 443);
+builder.Services.AddHttpsRedirection(options => options.HttpsPort = port);
 // string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (builder.Environment.IsDevelopment())
+        // if (builder.Environment.IsDevelopment())
+        if (true)
         {
             policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
         }
@@ -70,37 +73,37 @@ builder.Services.AddHttpClient<FaviconHttpClient>(static client =>
     // client.DefaultRequestVersion = new Version(2, 0);
 });
 
-builder.Services.AddRateLimiter(static options =>
-    // options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-    // {
-    //     return RateLimitPartition.GetFixedWindowLimiter(httpContext.Request.Headers.Host.ToString(),
-    //         partition =>
-    //             new FixedWindowRateLimiterOptions
-    //             {
-    //                 PermitLimit = 5, AutoReplenishment = true, Window = TimeSpan.FromSeconds(10)
-    //             });
-    // }));
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, IPAddress>(context =>
-    {
-        var remoteIpAddress = context.Connection.RemoteIpAddress;
-        if (remoteIpAddress is null)
-        {
-            return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
-        }
-        // if (!IPAddress.IsLoopback(remoteIpAddress!))
-        // {
-        return RateLimitPartition.GetFixedWindowLimiter(remoteIpAddress,
-            static _ =>
-                new FixedWindowRateLimiterOptions { PermitLimit = 1, AutoReplenishment = true, Window = TimeSpan.FromMilliseconds(100), QueueLimit = 5, QueueProcessingOrder = QueueProcessingOrder.NewestFirst });
-        // }
-        // return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
-    }));
+// builder.Services.AddRateLimiter(static options =>
+// options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+// {
+//     return RateLimitPartition.GetFixedWindowLimiter(httpContext.Request.Headers.Host.ToString(),
+//         partition =>
+//             new FixedWindowRateLimiterOptions
+//             {
+//                 PermitLimit = 5, AutoReplenishment = true, Window = TimeSpan.FromSeconds(10)
+//             });
+// }));
+// options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, IPAddress>(context =>
+// {
+//     var remoteIpAddress = context.Connection.RemoteIpAddress;
+//     if (remoteIpAddress is null)
+//     {
+//         return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
+//     }
+//     if (!IPAddress.IsLoopback(remoteIpAddress!))
+//     {
+//         return RateLimitPartition.GetFixedWindowLimiter(remoteIpAddress,
+//             static _ =>
+//                 new FixedWindowRateLimiterOptions { PermitLimit = 1, AutoReplenishment = true, Window = TimeSpan.FromMilliseconds(100), QueueLimit = 5, QueueProcessingOrder = QueueProcessingOrder.NewestFirst });
+//     }
+//     return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
+// }));
 
 var app = builder.Build();
 
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseRateLimiter();
+// app.UseRateLimiter();
 app.UseCors();
 app.RegisterSerilogRequestLogging();
 app.LogStartupInfo(builder);

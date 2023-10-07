@@ -15,7 +15,7 @@ public sealed class Blog : IEntity
     public string Id { get; init; }
 }
 
-public sealed record Article : IEntity
+public record Article : IEntity
 {
     public string BlogId { get; init; }
     public string Link { get; set; }
@@ -27,6 +27,24 @@ public sealed record Article : IEntity
     public string? Content { get; set; }
     // [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string Id { get; init; }
+}
+
+public record ArticleDto : Article
+{
+    public string Company { get; set; }
+    public string Logo { get; set; }
+}
+
+public record Payload<T>
+{
+    public T? Data { get; init; }
+    public RequestStatistics stats { get; init; }
+}
+
+public record RequestStatistics
+{
+    public long DurationInMs { get; init; }
+    public int TotalResults { get; init; }
 }
 
 public class User : IEntity

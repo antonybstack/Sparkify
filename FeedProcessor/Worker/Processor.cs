@@ -1,12 +1,15 @@
+using System.Globalization;
 using System.IO.Hashing;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using CodeHollow.FeedReader;
 using CodeHollow.FeedReader.Feeds;
 using HtmlAgilityPack;
 using Microsoft.Extensions.ObjectPool;
 using Raven.Client;
 using Raven.Client.Documents;
+using Shared;
 
 namespace Sparkify.Worker;
 
@@ -63,8 +66,7 @@ internal static class Processor
                 {
                     BlogId = blog.Id,
                     Link = article.Link.Trim(),
-                    Title = Thread.CurrentThread.CurrentCulture.TextInfo.ToTitleCase(
-                        WebUtility.HtmlDecode(article.Title.Trim())),
+                    Title = WebUtility.HtmlDecode(article.Title.Trim().ToTitleCase()),
                     Date = article.PublishingDate ??
                            (DateTime.TryParse(article.PublishingDateString, out var datetime) ? datetime : null),
                     Uid = XxHash3.HashToUInt64(Encoding.UTF8.GetBytes(article.Id)).ToString(),
@@ -117,7 +119,7 @@ internal static class Processor
 
                 if (htmlContent is not null)
                 {
-                    string? attachmentName = $"{record.Uid}.html";
+                    string attachmentName = $"{record.Uid}.html";
                     var attachmentStream = new MemoryStream(Encoding.UTF8.GetBytes(htmlContent));
                     session.Advanced.Attachments.Store(record, attachmentName, attachmentStream, "text/html");
                 }

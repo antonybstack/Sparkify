@@ -8,18 +8,18 @@
       "launchBrowser": false,
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
+
+        //      "commandName": "Executable",
+        //      "executablePath": "dotnet",
+        //      "workingDirectory": "$(ProjectDir)",
+        //      "commandLineArgs": "watch run",
+        //      "hotReloadProfile": "aspnetcore",
+        //      "hotReloadEnabled": true,
+        //      "dotnetRunMessages": true,
+        //      "launchBrowser": false,
+        //      "environmentVariables": {
+        //        "DOTNET_ENVIRONMENT": "Development"
       }
-      //            "commandName": "Project",
-      //            "executablePath": "dotnet",
-      //            "workingDirectory": "$(ProjectDir)",
-      //            "commandLineArgs": "watch run",
-      //            "hotReloadProfile": "aspnetcore",
-      //            "hotReloadEnabled": true,
-      //            "dotnetRunMessages": true,
-      //            "launchBrowser": false,
-      //            "environmentVariables": {
-      //                "DOTNET_ENVIRONMENT": "Development"
-      //            }
     },
     "API_Production": {
       "commandName": "Project",
