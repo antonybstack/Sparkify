@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Hosting.Server;
 using Serilog;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Configuration(context.Configuration); });
 
@@ -24,12 +24,12 @@ builder.Host.UseSerilog((context, loggerConfig) => { loggerConfig.ReadFrom.Confi
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-WebApplication app = builder.Build();
+var app = builder.Build();
 
 // Log the application startup information
-ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var isDevelopment = app.Environment.IsDevelopment();
-IServer server = app.Services.GetRequiredService<IServer>();
+var server = app.Services.GetRequiredService<IServer>();
 logger.LogInformation("Application Name: {ApplicationName}", builder.Environment.ApplicationName);
 logger.LogInformation("Environment Name: {EnvironmentName}", builder.Environment.EnvironmentName);
 logger.LogInformation("ContentRoot Path: {ContentRootPath}", builder.Environment.ContentRootPath);
@@ -54,7 +54,6 @@ else
     and that any future attempts to access it using HTTP should
     automatically be converted to HTTPS */
 //app.UseHsts();
-
 
 /* enforces causes an automatic redirection to HTTPS URL
     when an HTTP URL is received in a way that forces a secure connection.

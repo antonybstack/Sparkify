@@ -5,72 +5,74 @@ using System.Text;
 using NBomber.Contracts;
 using NBomber.Http.CSharp;
 
-var httpClientHandler = new HttpClientHandler
-{
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-    // UseProxy = false,
-    // MaxConnectionsPerServer = 1,
-};
+using var httpClientHandler = new HttpClientHandler();
+httpClientHandler.ServerCertificateCustomValidationCallback =
+    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+// UseProxy = false,
+// MaxConnectionsPerServer = 1,
 
-var httpClient = new HttpClient(httpClientHandler)
-{
-    BaseAddress = new Uri("https://127.0.0.1:6002/api/payment/health", UriKind.RelativeOrAbsolute),
-    Timeout = TimeSpan.FromMinutes(5),
-    DefaultRequestVersion =  new Version(2, 0),
-    DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
-    // DefaultRequestHeaders =
-    // {
-    //     // Connection = { "keep-alive" },
-    //     // ConnectionClose = true,
-    // }
-};
+using var httpClient = new HttpClient(httpClientHandler);
+httpClient.BaseAddress = new Uri("https://127.0.0.1:6002/api/payment/health", UriKind.RelativeOrAbsolute);
+httpClient.Timeout = TimeSpan.FromMinutes(5);
+httpClient.DefaultRequestVersion = new Version(2, 0);
+httpClient.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
+// DefaultRequestHeaders =
+// {
+//      Connection = { "keep-alive" },
+//      ConnectionClose = true,
+// }
 
-
-var scenario1 = Scenario.Create("server_sent_scenario", async context =>
-    {
-        var cts = new CancellationTokenSource();
-        cts.CancelAfter(TimeSpan.FromSeconds(15)); // adjust as needed
-
-        var clientArgs = new HttpClientArgs(HttpCompletionOption.ResponseHeadersRead, cts.Token);
-        var request = new HttpRequestMessage
+var scenario1 = Scenario.Create("server_sent_scenario",
+        async context =>
         {
-            Method = HttpMethod.Get,
-            Version = new Version(2, 0),
-            VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
-            Headers = { { "Accept", "text/event-stream" } }
-        };
+            var cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeSpan.FromSeconds(15)); // adjust as needed
 
-        Response<HttpResponseMessage>? response = null;
-        try
-        {
-            response = await Http.Send(httpClient, clientArgs, request);
-            await using var stream = await response!.Payload.Value.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-
-            char[] buffer = new char[1024];
-            while (!cts.IsCancellationRequested && !reader.EndOfStream)
+            var clientArgs = new HttpClientArgs(HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            var request = new HttpRequestMessage
             {
-                await reader.ReadAsync(buffer, 0, buffer.Length);
-            }
+                Method = HttpMethod.Get,
+                Version = new Version(2, 0),
+                VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
+                Headers =
+                {
+                    {
+                        "Accept", "text/event-stream"
+                    }
+                }
+            };
 
-            await stream.DisposeAsync();
-        }
-        catch (Exception e)
-        {
-            if (!cts.IsCancellationRequested)
+            Response<HttpResponseMessage>? response = null;
+            try
             {
-                Console.WriteLine("cts.IsCancellationRequested: " + cts.IsCancellationRequested);
-                Console.WriteLine(e);
-                throw;
+                response = await Http.Send(httpClient, clientArgs, request);
+                await using var stream = await response.Payload.Value.Content.ReadAsStreamAsync();
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+
+                var buffer = new char[1024];
+                while (!cts.IsCancellationRequested && !reader.EndOfStream)
+                {
+                    await reader.ReadAsync(buffer, 0, buffer.Length);
+                }
+
+                await stream.DisposeAsync();
             }
-        }
-        finally
-        {
-            response?.Payload.Value.Content.Dispose();
-            response?.Payload.Value.Dispose();
-        }
-        return response;
-    })
+            catch (Exception e)
+            {
+                if (!cts.IsCancellationRequested)
+                {
+                    Console.WriteLine("cts.IsCancellationRequested: " + cts.IsCancellationRequested);
+                    Console.WriteLine(e);
+                    throw;
+                }
+            }
+            finally
+            {
+                response?.Payload.Value.Content.Dispose();
+                response?.Payload.Value.Dispose();
+            }
+            return response;
+        })
     .WithoutWarmUp()
     .WithLoadSimulations(
         Simulation.RampingConstant(500, TimeSpan.FromSeconds(30)),
@@ -79,21 +81,8 @@ var scenario1 = Scenario.Create("server_sent_scenario", async context =>
 
 NBomberRunner
     .RegisterScenarios(scenario1)
-    .WithWorkerPlugins(new HttpMetricsPlugin(new[] { HttpVersion.Version1, HttpVersion.Version2, HttpVersion.Version3 }))
+    .WithWorkerPlugins(new HttpMetricsPlugin(new[]
+    {
+        HttpVersion.Version1, HttpVersion.Version2, HttpVersion.Version3
+    }))
     .Run();
-
-
-// var scenarioSimple = Scenario.Create("api_scenario", async context =>
-//     {
-//         var test1 = Http.CreateRequest("GET", "http://127.0.0.1:6002/api/payment?id=PaymentEvents%2F97-A");
-//         return await Http.Send(httpClient, test1);
-//     })
-//     .WithoutWarmUp()
-//     .WithLoadSimulations(
-//         Simulation.RampingConstant(200, TimeSpan.FromSeconds(10)),
-//         Simulation.RampingConstant(200, TimeSpan.FromSeconds(20))
-//     );
-// NBomberRunner
-//     .RegisterScenarios(scenarioSimple)
-//     .WithWorkerPlugins(new HttpMetricsPlugin(new[] { HttpVersion.Version1 }))
-//     .Run();
