@@ -19,9 +19,24 @@
             let end = performance.now();
             totalDurationInMs = Math.round(end - start);
 
+            let wasCacheHit = false;
+            if (res.status === 200) {
+                const cacheControlHeader = res.headers.get("cache-control");
+                if (cacheControlHeader && cacheControlHeader.includes("disk")) {
+                    wasCacheHit = true;
+                }
+            } else if (res.status === 304) {
+                wasCacheHit = true;
+            }
+
+            const cfCacheStatus = res.headers.get("Cf-Cache-Status");
+            if (cfCacheStatus === "HIT") {
+                wasCacheHit = true;
+            }
+
             const payload = (await res.json());
             if (payload.stats) {
-                serverDurationInMs = Math.max(0, payload.stats.durationInMs);
+                serverDurationInMs = wasCacheHit ? 0 : Math.max(0, payload.stats.durationInMs);
                 totalResults = payload.stats.totalResults;
             } else {
                 serverDurationInMs = null;
