@@ -4,11 +4,13 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Lucene.Net.Analysis.Core;
+using Lucene.Net.Util;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Net.Http.Headers;
 using Nager.PublicSuffix;
+using OpenTelemetry.Trace;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Queries;
 using Raven.Client.Documents.Queries.Highlighting;
@@ -31,8 +33,10 @@ Search by tags
 internal static class ApiEndpointRouteBuilderExtensions
 {
     private const string TitleFieldName = nameof(Article.Title);
-    private const string StartTag = "<b style=\"background:rgba(0, 180, 145, 0.5); color: rgba(255, 255, 255, 0.8);\">";
-    private const string EndTag = "</b>";
+    // private const string StartTag = "<b style=\"background:rgba(0, 180, 145, 0.5); color: rgba(255, 255, 255, 0.8);\">";
+    // private const string EndTag = "</b>";
+    private const string StartTag = "<b><mark>";
+    private const string EndTag = "</mark></b>";
     private const string StartDelimiter = "ßßßßß";
     private const string EndDelimiter = "ΩΩΩΩΩ";
     private const string Ellipsis = "...";
@@ -61,20 +65,28 @@ internal static class ApiEndpointRouteBuilderExtensions
         var routeGroup = endpoints.MapGroup("api/blog");
 
         routeGroup.MapGet("/search",
-            static async Task<Results<Ok<Payload<IEnumerable<ArticleDto>>>, NotFound, ProblemHttpResult>> (HttpContext context, string query) =>
+            static async Task<Results<Ok<Payload<IEnumerable<ArticleDto>>>, NotFound, ProblemHttpResult>> (
+                HttpContext context,
+                Tracer tracer,
+                string query) =>
             {
+                using var searchSpan = tracer.StartActiveSpan("Search");
                 long startTime = Stopwatch.GetTimestamp();
-                // context.Response.Headers.CacheControl = $"public,max-age={TimeSpan.FromSeconds(60).TotalSeconds.ToString(CultureInfo.InvariantCulture)}";
 
                 using var session = DbManager.Store.OpenAsyncSession();
 
                 QueryStatistics? stats;
                 ArticleDto[] articles;
-                if (!CleanQueryAndAddWildcard(ref query))
+                CleanQuery(query, out var queryCleaned);
+                var queryProcessed = CleanQueryAndAddWildcard(ref query);
+                using var executeQuerySpan = tracer.StartActiveSpan("ExecuteSearchQuery");
+                if (!queryProcessed)
                 {
-                    IQueryable<ArticleDto>? projectionQuery = from article in session.Query<Article>().Statistics(out stats)
+                    executeQuerySpan.SetAttribute("Query", string.Empty);
+                    IQueryable<ArticleDto>? projectionQuery =
+                        from article in session.Query<Article>().Statistics(out stats)
                         let blog = RavenQuery.Load<Blog>(article.BlogId)
-                        let contentShort = RavenQuery.Raw(article.Content, "substr(0,480)")
+                        let contentShort = RavenQuery.Raw(article.Content, "substr(0,360)")
                         let metadata = RavenQuery.Raw<string>("blog['@metadata']['logo']")
                         orderby article.Date descending
                         select new ArticleDto
@@ -101,9 +113,11 @@ internal static class ApiEndpointRouteBuilderExtensions
                         query.Length - 1,
                         query,
                         static (span, original) => original.AsSpan()[..^1].CopyTo(span));
-                    Console.WriteLine($"'{query}'");
-                    Console.WriteLine($"{queryWithoutWildCard}'");
-                    Console.WriteLine("-----");
+                    Debug.WriteLine($"'{query}'");
+                    Debug.WriteLine($"{queryWithoutWildCard}'");
+                    Debug.WriteLine("-----");
+                    executeQuerySpan.SetAttribute("Query", query);
+                    executeQuerySpan.SetAttribute("QueryWithoutWildcard", queryWithoutWildCard);
                     // custom highlight with RQL https://ravendb.net/docs/article-page/6.0/csharp/client-api/session/querying/text-search/highlight-query-results#highlight---customize-tags
                     // can also stream results: https://ravendb.net/docs/article-page/6.0/Csharp/client-api/session/querying/how-to-stream-query-results#stream-related-documents
 
@@ -195,22 +209,22 @@ internal static class ApiEndpointRouteBuilderExtensions
                                 .Statistics(out stats)
                                 .Highlight(static x => x.Title, 200, 1, _tagsToUse, out var titleHighlights)
                                 .Highlight(static x => x.Content, 100, 10, _tagsToUse, out var contentHighlights)
-                            let blog = RavenQuery.Load<Blog>(e.BlogId)
-                            let contentShort = RavenQuery.Raw(e.Content, "substr(0,480)")
-                            let metadata = RavenQuery.Raw<string>("blog['@metadata']['logo']")
-                            select new ArticleDto
-                            {
-                                Id = e.Id,
-                                BlogId = e.BlogId,
-                                Link = e.Link,
-                                Authors = e.Authors,
-                                Title = e.Title,
-                                Date = e.Date,
-                                Categories = e.Categories,
-                                Content = contentShort,
-                                Logo = metadata,
-                                Company = blog.Title
-                            })
+                                      let blog = RavenQuery.Load<Blog>(e.BlogId)
+                                      let contentShort = RavenQuery.Raw(e.Content, "substr(0,360)")
+                                      let metadata = RavenQuery.Raw<string>("blog['@metadata']['logo']")
+                                      select new ArticleDto
+                                      {
+                                          Id = e.Id,
+                                          BlogId = e.BlogId,
+                                          Link = e.Link,
+                                          Authors = e.Authors,
+                                          Title = e.Title,
+                                          Date = e.Date,
+                                          Categories = e.Categories,
+                                          Content = contentShort,
+                                          Logo = metadata,
+                                          Company = blog.Title
+                                      })
                         .Take(6)
                         .ToArrayAsync();
 
@@ -218,7 +232,7 @@ internal static class ApiEndpointRouteBuilderExtensions
                     {
                         if (titleHighlights.GetFragments(article.Id).Length is not 0)
                         {
-                            article.Title = ModifyHighlight(titleHighlights.GetFragments(article.Id).FirstOrDefault(), queryWithoutWildCard) ?? article.Title;
+                            article.Title = ModifyHighlight(titleHighlights.GetFragments(article.Id).FirstOrDefault(), queryCleaned) ?? article.Title;
                         }
                         if (contentHighlights.GetFragments(article.Id).Length is not 0)
                         {
@@ -226,13 +240,25 @@ internal static class ApiEndpointRouteBuilderExtensions
                                 string.Join(Ellipsis,
                                     contentHighlights.GetFragments(article.Id)
                                         .Select(static s => s.Trim())),
-                                queryWithoutWildCard);
+                                queryCleaned);
                         }
+                        // if (titleHighlights.GetFragments(article.Id).Length is not 0)
+                        // {
+                        //     article.Title = titleHighlights.GetFragments(article.Id).FirstOrDefault() ?? article.Title;
+                        // }
+                        // if (contentHighlights.GetFragments(article.Id).Length is not 0)
+                        // {
+                        //     article.Content =
+                        //         string.Join(Ellipsis,
+                        //             contentHighlights.GetFragments(article.Id)
+                        //                 .Select(static s => s.Trim()));
+                        // }
                     }
                 }
 
                 if (articles.Length is 0)
                 {
+                    using var executeSuggestionQuerySpan = tracer.StartActiveSpan("ExecuteSuggestionQuery");
                     var suggestionsTasks = _suggestions
                         .Select(request =>
                         {
@@ -278,10 +304,18 @@ internal static class ApiEndpointRouteBuilderExtensions
                         articles[i++] = new ArticleDto { Title = suggestion.suggestion };
                     }
                 }
+                // remove empty strings in each authors collection
+                foreach (var article in articles)
+                {
+                    article.Authors = article.Authors?
+                        .Where(static x => !string.IsNullOrWhiteSpace(x))
+                        .ToArray();
+                }
                 return TypedResults.Ok(
                     new Payload<IEnumerable<ArticleDto>> { Data = articles, stats = new RequestStatistics { DurationInMs = Stopwatch.GetElapsedTime(startTime).Milliseconds, TotalResults = stats.TotalResults } }
                 );
-            });
+            })
+            .WithMetadata(new ResponseCacheAttribute { Duration = (int)TimeSpan.FromHours(1).TotalSeconds, Location = ResponseCacheLocation.Any });
 
         routeGroup.MapGet("blogs/{id}/image/{name}",
             static async Task<Results<FileStreamHttpResult, NotFound, ProblemHttpResult>> (HttpContext context, string id, string name) =>
@@ -294,14 +328,12 @@ internal static class ApiEndpointRouteBuilderExtensions
                 {
                     return TypedResults.NotFound();
                 }
-                context.Response.Headers.CacheControl = $"public,max-age={TimeSpan.FromDays(30).TotalSeconds.ToString(CultureInfo.InvariantCulture)}";
-                // context.Response.Headers.CacheControl = $"public,max-age={TimeSpan.FromSeconds(1).TotalSeconds.ToString(CultureInfo.InvariantCulture)}";
                 var entityTag = new EntityTagHeaderValue($"\"{attachment.Details.ChangeVector}\"");
                 return TypedResults.File(attachment.Stream,
                     attachment.Details.ContentType,
                     attachment.Details.Name,
                     entityTag: entityTag);
-            });
+            }).WithMetadata(new ResponseCacheAttribute { Duration = (int)TimeSpan.FromDays(5).TotalSeconds, Location = ResponseCacheLocation.Any });
 
         routeGroup.MapPost("/",
                 static async Task<Results<NoContent, ProblemHttpResult>> ([FromServices] FaviconHttpClient faviconHttpClient,
@@ -428,17 +460,18 @@ internal static class ApiEndpointRouteBuilderExtensions
         }
         int resultRawLength = 0;
         var result = new StringBuilder();
+        result.Append("<em>\"...");
         string[] segments = inputSpan.ToString().Split(StartDelimiter);
         foreach (string segment in segments)
         {
-            if (resultRawLength > 480)
+            if (resultRawLength > 360)
             {
                 break;
             }
             if (segment.Contains(EndDelimiter, StringComparison.OrdinalIgnoreCase))
             {
                 string[] parts = segment.Split(EndDelimiter, StringSplitOptions.RemoveEmptyEntries);
-                var highlighted = parts.First().AsSpan();
+                var highlighted = parts.First().Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' ').AsSpan();
                 int index = 0;
                 while (index < highlighted.Length)
                 {
@@ -477,6 +510,7 @@ internal static class ApiEndpointRouteBuilderExtensions
                 resultRawLength += segment.Length;
             }
         }
+        result.Append("...\"</em>");
         return result.ToString();
     }
 
@@ -490,7 +524,6 @@ internal static class ApiEndpointRouteBuilderExtensions
         StringBuilder sb = new(query.Length);
         int i = 0;
 
-        // Trim leading whitespace
         while (i < query.Length && char.IsWhiteSpace(query[i]))
         {
             ++i;
@@ -498,14 +531,14 @@ internal static class ApiEndpointRouteBuilderExtensions
 
         while (i < query.Length)
         {
-            if (IsWordStart(query, i))
+            if (i < query.Length && (char.IsAsciiLetterOrDigit(query[i]) || char.IsPunctuation(query[i])) && (i == 0 || !char.IsAsciiLetterOrDigit(query[i - 1])))
             {
                 int start = i;
-                while (i < query.Length && char.IsAsciiLetterOrDigit(query[i]))
+                while (i < query.Length && (char.IsAsciiLetterOrDigit(query[i]) || char.IsPunctuation(query[i])))
                 {
                     ++i;
                 }
-                if (!IsStopWord(query, start, i))
+                if (!StringExtensions.StopWords.Contains(query.AsSpan(start, i - start)))
                 {
                     sb.Append(query, start, i - start);
                     if (i < query.Length)
@@ -524,7 +557,10 @@ internal static class ApiEndpointRouteBuilderExtensions
             }
             else
             {
-                sb.Append(' ');
+                if (!char.IsWhiteSpace(sb[^1]))
+                {
+                    sb.Append(' ');
+                }
                 ++i;
             }
         }
@@ -534,22 +570,63 @@ internal static class ApiEndpointRouteBuilderExtensions
             return false;
         }
 
-        if (char.IsWhiteSpace(sb[^1]))
+        while (char.IsWhiteSpace(sb[^1]))
         {
-            sb.Length = sb.Length - 1;
+            sb.Length--;
         }
         query = sb.Append('*').ToString();
 
         return sb.Length is not 0;
     }
 
-    private static bool IsWordStart(string str, int index) =>
-        index < str.Length && char.IsAsciiLetterOrDigit(str[index]) && (index == 0 || char.IsWhiteSpace(str[index - 1]));
-
-    private static bool IsStopWord(string str, int start, int end)
+    private static void CleanQuery(string query, out string queryCleaned)
     {
-        string word = str.Substring(start, end - start).ToLowerInvariant();
-        return StopAnalyzer.ENGLISH_STOP_WORDS_SET.Contains(word);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            queryCleaned = string.Empty;
+            return;
+        }
+
+        StringBuilder sb = new(query.Length);
+
+        int i = 0;
+
+        // Trim leading whitespace
+        while (i < query.Length && char.IsWhiteSpace(query[i]))
+        {
+            ++i;
+        }
+
+        // include alphanumeric and whitespace characters
+        while (i < query.Length)
+        {
+            if (char.IsWhiteSpace(query[i]))
+            {
+                while (i + 1 < query.Length && char.IsWhiteSpace(query[i + 1]))
+                {
+                    ++i;
+                }
+                sb.Append(' ');
+            }
+            else
+            {
+                sb.Append(query[i]);
+            }
+            ++i;
+        }
+
+        if (sb.Length is 0)
+        {
+            queryCleaned = string.Empty;
+            return;
+        }
+
+        while (char.IsWhiteSpace(sb[^1]))
+        {
+            sb.Length--;
+        }
+        queryCleaned = sb.ToString();
+        return;
     }
 
     // private static bool CleanQueryAndAddWildcard(ref string query)

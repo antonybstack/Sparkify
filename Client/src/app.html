@@ -1,29 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="utf-8"/>
-    <link href="%sveltekit.assets%/favicon.png" rel="icon"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <head>
+    <meta charset="utf-8" />
+    <link href="%sveltekit.assets%/favicon.png" rel="icon" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
     %sveltekit.head%
-</head>
-<body data-sveltekit-preload-data="hover">
-<div class="content">%sveltekit.body%</div>
-</body>
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div class="content">%sveltekit.body%</div>
+  </body>
 </html>
 
 <style>
-    html {
-        background-color: #232323;
-        color: #ececec
-    }
+  :root {
+    --foreground-color: #232323;
+    --background-color: #232323;
+    --text-color: #eeeeee;
+    --link-color: #57b3ff;
+  }
 
-    a {
-        color: #57b3ff;
-        text-decoration: none;
-        cursor: pointer;
-    }
+  html[data-theme="light"] {
+    --background-color: #fff;
+    --text-color: #121416d8;
+    --link-color: #57b3ff;
+  }
 
-    a:hover {
-        text-decoration: underline;
-    }
+  body {
+    background: var(--background-color);
+    color: var(--text-color);
+  }
+
+  a {
+    color: var(--link-color);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    filter: brightness(90%);
+  }
+
+  mark {
+    padding: 0 0.05em;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: hidden;
+    margin: 0;
+  }
 </style>

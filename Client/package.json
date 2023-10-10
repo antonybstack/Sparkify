@@ -6,8 +6,9 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "cloudflare:dev": "wrangler pages dev --compatibility-date=2023-09-24 --proxy 5173 -- npm run dev",
-    "cloudflare:deploy": "npm run build && wrangler pages deploy build"
+    "deploy:dev": "wrangler pages dev --compatibility-date=2023-09-24 --proxy 5173 -- npm run dev",
+    "deploy:staging": "npm run build && wrangler pages deploy build --branch=staging",
+    "deploy:production": "npm run build && wrangler pages deploy build --branch=main"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^2.0.3",

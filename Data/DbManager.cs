@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Raven.Client.Documents;
@@ -14,8 +14,9 @@ namespace Sparkify;
 public static class DbManager
 {
     private const string Name = "Sparkify";
-    private static readonly Uri httpEndpoint = new("http://192.168.1.200:8888");
-    private static readonly IPEndPoint tcpEndPoint = new(IPAddress.Parse("192.168.1.200"), 38888);
+    public static string? HttpUriString { get; set; }
+    public static string? TcpHostName { get; set; }
+    public static int? TcpPort { get; set; }
 
     /// The use of “Lazy” ensures that the document store is only created once
     /// without you having to worry about double locking or explicit thread safety issues
@@ -37,7 +38,7 @@ public static class DbManager
     ///     - Export & Import database data.
     /// </summary>
     /// <returns>An <see cref="IDocumentStore" /> to further customize the added endpoints.</returns>
-    private static IDocumentStore CreateStore()
+    private static DocumentStore CreateStore()
     {
         // test interserver connections
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
@@ -45,6 +46,8 @@ public static class DbManager
 
         try
         {
+            ArgumentNullException.ThrowIfNull(HttpUriString);
+            var httpEndpoint = new Uri(HttpUriString);
             httpClient.GetAsync(httpEndpoint).Wait();
         }
         catch (Exception ex)
@@ -59,6 +62,9 @@ public static class DbManager
 
         try
         {
+            ArgumentNullException.ThrowIfNull(TcpHostName);
+            ArgumentNullException.ThrowIfNull(TcpPort);
+            var tcpEndPoint = new IPEndPoint(IPAddress.Parse(TcpHostName), TcpPort.Value);
             client.Connect(tcpEndPoint);
         }
         catch (SocketException ex)
@@ -74,7 +80,7 @@ public static class DbManager
         var store = new DocumentStore
         {
             // Define the cluster node URLs (required)
-            Urls = new[] { httpEndpoint.ToString() },
+            Urls = new[] { HttpUriString },
 
             // Set conventions as necessary (optional)
             Conventions =
@@ -90,10 +96,8 @@ public static class DbManager
                     // Maximum total size of cached items is 1 GB
                     Mode = AggressiveCacheMode.TrackChanges
                 },
-                UseCompression = true,
                 HttpVersion = HttpVersion.Version30
             },
-
             // Define a default database (optional)
             Database = Name
         };

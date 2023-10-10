@@ -12,7 +12,7 @@ namespace Sparkify.Features.Payment;
 
 public static class ApiEndpointRouteBuilderExtensions
 {
-    private static readonly byte[] LineBreak = "\n"u8.ToArray();
+    //private static readonly byte[] LineBreak = "\n"u8.ToArray();
 
     /// <summary>
     ///     Add endpoints for payment related operations.

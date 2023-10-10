@@ -1,8 +1,15 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
 # Created by DiagConfig, the diagnostic config generator
 # Generated : 2023-08-07 17:59:51Z
 # Max Tier  : 2147483647
 # Attributes: general, performance, production
 # Analyzers : ILLink.RoslynAnalyzer, Microsoft.Analyzers.Extra, Microsoft.Analyzers.Local, Microsoft.AspNetCore.App.Analyzers, Microsoft.AspNetCore.Components.Analyzers, Microsoft.CodeAnalysis.CodeStyle, Microsoft.CodeAnalysis.CSharp.CodeStyle, Microsoft.CodeAnalysis.CSharp.NetAnalyzers, Microsoft.CodeAnalysis.NetAnalyzers, Microsoft.VisualStudio.Threading.Analyzers, Microsoft.VisualStudio.Threading.Analyzers.CSharp, SonarAnalyzer.CSharp, StyleCop.Analyzers
+
+root=true
 
 [*.cs]
 
@@ -2128,7 +2135,7 @@ csharp_style_prefer_range_operator = true : warning
 # Title    : Expression value is never used
 # Category : Style
 # Help Link: https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0058
-dotnet_diagnostic.ide0058.severity = warning
+dotnet_diagnostic.ide0058.severity = silent
 csharp_style_unused_value_expression_statement_preference = discard_variable
 
 # Title    : Unnecessary assignment of a value
@@ -6441,3 +6448,7 @@ resharper_wrong_indent_size_highlighting = warning
 indent_style = space
 indent_size = 4
 tab_width = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true

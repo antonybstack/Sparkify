@@ -1,19 +1,21 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-#
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify", "Sparkify\Sparkify.csproj", "{D8982147-802E-4235-99EF-81618634BAEF}"
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34112.27
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sparkify", "Sparkify\Sparkify.csproj", "{D8982147-802E-4235-99EF-81618634BAEF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sparkify.Proxy", "Sparkify.Proxy\Sparkify.Proxy.csproj", "{302F1284-751A-427E-9FED-FFC36107F6D0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sparkify.Proxy", "Sparkify.Proxy\Sparkify.Proxy.csproj", "{302F1284-751A-427E-9FED-FFC36107F6D0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Data", "Data\Data.csproj", "{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Data", "Data\Data.csproj", "{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmarking", "Benchmarking\Benchmarking.csproj", "{705317F8-EB6E-42B5-B29E-E6C5E794927F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Benchmarking", "Benchmarking\Benchmarking.csproj", "{705317F8-EB6E-42B5-B29E-E6C5E794927F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "otel", "otel\otel.csproj", "{4F40378D-1DC9-4966-B73D-F7144A18BB71}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "otel", "otel\otel.csproj", "{4F40378D-1DC9-4966-B73D-F7144A18BB71}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FeedProcessor", "FeedProcessor\FeedProcessor.csproj", "{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FeedProcessor", "FeedProcessor\FeedProcessor.csproj", "{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "Shared\Shared.csproj", "{B9909D6E-C80B-4771-980E-A190FEE92BAF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shared", "Shared\Shared.csproj", "{B9909D6E-C80B-4771-980E-A190FEE92BAF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,12 +27,14 @@ Global
 		{D8982147-802E-4235-99EF-81618634BAEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8982147-802E-4235-99EF-81618634BAEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8982147-802E-4235-99EF-81618634BAEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{302F1284-751A-427E-9FED-FFC36107F6D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{302F1284-751A-427E-9FED-FFC36107F6D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{302F1284-751A-427E-9FED-FFC36107F6D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{302F1284-751A-427E-9FED-FFC36107F6D0}.Release|Any CPU.Build.0 = Release|Any CPU
 		{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9C3D62B7-B31C-455A-BB71-73A61C07B0BE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{302F1284-751A-427E-9FED-FFC36107F6D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{302F1284-751A-427E-9FED-FFC36107F6D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -47,5 +51,11 @@ Global
 		{B9909D6E-C80B-4771-980E-A190FEE92BAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B9909D6E-C80B-4771-980E-A190FEE92BAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B9909D6E-C80B-4771-980E-A190FEE92BAF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3D90C810-3A5C-4D75-886A-63329FB1D4E4}
 	EndGlobalSection
 EndGlobal

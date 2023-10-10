@@ -44,7 +44,7 @@ public record Payload<T>
 public record RequestStatistics
 {
     public long DurationInMs { get; init; }
-    public int TotalResults { get; init; }
+    public long TotalResults { get; init; }
 }
 
 public class User : IEntity

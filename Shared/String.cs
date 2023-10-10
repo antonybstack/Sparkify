@@ -1,4 +1,11 @@
 ﻿using System.Globalization;
+using Lucene.Net.Documents;
+using Lucene.Net.Index;
+using Lucene.Net.Search;
+using Lucene.Net.Store;
+using Lucene.Net.Util;
+using Lucene.Net.Analysis.Core;
+using System.Runtime.CompilerServices;
 
 namespace Shared;
 
@@ -20,8 +27,9 @@ public static class StringExtensions
             }
             if (i is 0 ||
                 i == words.Length - 1 ||
-                Separators.Any(x => words[i - 1].EndsWith(x)) ||
-                !Exclusions.Contains(words[i].ToLowerInvariant()))
+                char.IsSeparator(words[i - 1][^1]) ||
+                char.IsPunctuation(words[i - 1][^1]) ||
+                !StopWords.Contains(words[i]))
             {
                 words[i] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(words[i].ToLowerInvariant());
             }
@@ -34,37 +42,20 @@ public static class StringExtensions
         return string.Join(" ", words);
     }
 
-    private static readonly char[] Separators =
-    {
-        '-',
-        ':',
-        ';',
-        '.',
-        ',',
-        '!',
-        '?'
-    };
+    public static readonly ReadOnlyMemory<char>[] StopWords =
+        Array.ConvertAll(StopAnalyzer.ENGLISH_STOP_WORDS_SET.ToArray(), x => x.AsMemory());
 
-    private static readonly HashSet<string> Exclusions = new()
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool Contains(this ReadOnlyMemory<char>[] arr, ReadOnlySpan<char> word)
     {
-        "a",
-        "an",
-        "and",
-        "at",
-        "but",
-        "by",
-        "for",
-        "in",
-        "nor",
-        "of",
-        "on",
-        "or",
-        "so",
-        "the",
-        "to",
-        "up",
-        "yet",
-        "with",
-        "from"
-    };
+        for (int i = 0; i < arr.Length; i++)
+        {
+            if (arr[i].Span.CompareTo(word, StringComparison.OrdinalIgnoreCase) is 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 }

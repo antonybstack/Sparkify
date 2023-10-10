@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Diagnostics.Metrics;
 using System.Reflection;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -8,7 +6,7 @@ using OpenTelemetry.Trace;
 
 namespace Sparkify.Observability;
 
-public static class OpenTelemetry
+public static partial class OpenTelemetry
 {
     /// <summary>
     /// Registers OpenTelemetry with tracing and metrics.
@@ -27,7 +25,8 @@ public static class OpenTelemetry
             .AddService(
                 serviceNamespace: "Sparkify",
                 serviceName: builder.Environment.ApplicationName,
-                serviceVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
+                // serviceVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
+                serviceVersion: "0.0.1",
                 serviceInstanceId: Environment.MachineName
             )
             .AddAttributes(new Dictionary<string, object>
@@ -37,13 +36,15 @@ public static class OpenTelemetry
 
         builder.Services
             .AddOpenTelemetry()
-            .AddTracing(resource)
-            .AddMetrics();
+            .AddTracing(builder.Configuration, resource)
+            .AddMetrics(builder.Configuration);
 
         return builder;
     }
 
-    private static OpenTelemetryBuilder AddTracing(this OpenTelemetryBuilder builder, ResourceBuilder resource) =>
+    private static OpenTelemetryBuilder AddTracing(this OpenTelemetryBuilder builder,
+        IConfiguration configuration,
+        ResourceBuilder resource) =>
         builder.WithTracing(tracerProviderBuilder =>
             tracerProviderBuilder
                 .AddSource(DiagnosticsConfig.ActivitySource.Name)
@@ -73,10 +74,11 @@ public static class OpenTelemetry
                         activity?.SetTag("http.response.content_type", response?.ContentType);
                     };
                 })
-                .AddOtlpExporter(options => { options.Endpoint = new Uri("http://192.168.1.200:4317"); })
+                .AddOtlpExporter(options => { options.Endpoint = new Uri(configuration["Urls:Otlp"]); })
                 .SetSampler(new AlwaysOnSampler()));
 
-    private static OpenTelemetryBuilder AddMetrics(this OpenTelemetryBuilder builder) =>
+    private static OpenTelemetryBuilder AddMetrics(this OpenTelemetryBuilder builder,
+        IConfiguration configuration) =>
         builder.WithMetrics(metricsProviderBuilder =>
             metricsProviderBuilder
                 .ConfigureResource(resource => resource.AddService(DiagnosticsConfig.ServiceName))
@@ -84,23 +86,18 @@ public static class OpenTelemetry
                 .AddAspNetCoreInstrumentation()
                 .AddProcessInstrumentation()
                 .AddRuntimeInstrumentation()
+                .AddHttpClientInstrumentation()
                 // Metrics provides by ASP.NET Core in .NET 8
                 .AddMeter("Microsoft.AspNetCore.Hosting")
                 .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
                 .AddOtlpExporter((options, o) =>
                 {
-                    options.Endpoint = new Uri("http://192.168.1.200:4317");
+                    options.Endpoint = new Uri(configuration["Urls:Otlp"]);
                     o.PeriodicExportingMetricReaderOptions = new PeriodicExportingMetricReaderOptions
                     {
-                        ExportIntervalMilliseconds = 5000, ExportTimeoutMilliseconds = 5000
+                        ExportIntervalMilliseconds = 5000,
+                        ExportTimeoutMilliseconds = 5000
                     };
                 })
         );
-
-    public static class DiagnosticsConfig
-    {
-        public const string ServiceName = "Sparkify";
-        public static readonly ActivitySource ActivitySource = new(ServiceName);
-        public static Meter Meter = new(ServiceName);
-    }
 }

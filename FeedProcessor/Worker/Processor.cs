@@ -102,8 +102,8 @@ internal static class Processor
                 }
 
                 record.Authors = authors
-                    .Where(static s => !string.IsNullOrWhiteSpace(s))
                     .Select(WebUtility.HtmlDecode)
+                    .Where(static s => !string.IsNullOrWhiteSpace(s))
                     .OfType<string>()
                     .ToHashSet();
 

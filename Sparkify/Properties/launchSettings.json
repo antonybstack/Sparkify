@@ -21,6 +21,15 @@
         //        "DOTNET_ENVIRONMENT": "Development"
       }
     },
+    "API_Staging": {
+      "commandName": "Project",
+      "executablePath": "dotnet",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Staging"
+      }
+    },
     "API_Production": {
       "commandName": "Project",
       "executablePath": "dotnet",

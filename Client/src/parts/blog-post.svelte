@@ -1,208 +1,230 @@
 <script>
-    export let post;
+  export let post;
+  export let searchQuery;
+  export const authors = post.authors.join(", ");
+  function horizontalScroll(node) {
+    node.addEventListener("wheel", function (e) {
+      if (e.deltaY !== 0) {
+        node.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    });
+
+    return {
+      destroy() {
+        node.removeEventListener("wheel", horizontalScroll);
+      },
+    };
+  }
 </script>
 
 <div class="blog-post">
-    <div class="blog-header">
-        {#if post.logo && post.blogId}
-            <img class="blog-logo" src={`https://localhost/api/blog/${post.blogId}/image/${post.logo}`}
-                 alt={post.company}>
-        {/if}
-        <div class="blog-details">
-            <h2 class="blog-title">{@html post.title}</h2>
-            <div class="blog-meta">
-                <div>
-                    <p class="blog-company">{post.company}</p>
-                    <p class="blog-date">{post.date.toLocaleDateString(navigator.language, {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                    })}</p>
-                </div>
-                <div class="blog-categories">
-                    {#if post.categories}
-                        {#each post.categories as category}
-                            <span>{category}</span>
-                        {/each}
-                    {/if}
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- TODO: Authors   -->
-    {#if post.content}
-        <p class="blog-content">"...{@html post.content}..."</p>
-        <a class="blog-readmore" href="{post.link}" target="_blank">read more</a>
+  <div class="blog-header">
+    {#if post.logo && post.blogId}
+      <img
+        class="blog-logo"
+        src={`https://sparkify.dev/api/blog/${post.blogId}/image/${post.logo}`}
+        alt={post.company}
+      />
     {/if}
-
+    <div class="blog-details">
+      <h2 class="blog-title">
+        <a href={post.link} target="_blank" rel="noopener noreferrer"
+          >{@html post.title}</a
+        >
+      </h2>
+      <div class="blog-company">{post.company}</div>
+    </div>
+  </div>
+  {#if post.content}
+    <p class="blog-content{searchQuery ? ' highlighted' : ''}">
+      {@html post.content}
+    </p>
+  {/if}
+  {#if post.categories.length > 0}
+    <div class="blog-categories" use:horizontalScroll>
+      {#each post.categories as category}
+        <span>{category}</span>
+      {/each}
+    </div>
+  {/if}
+  <div class="blog-meta">
+    <div class="blog-date">
+      {post.date.toLocaleDateString(navigator.language, {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })}
+    </div>
+    {#if authors}<span>|</span>
+      <div class="authors">
+        <div class="author-icon" />
+        {authors}
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
-    /*.blog-content {*/
-    /*    color: #bebebe;*/
-    /*    line-height: 1.5;*/
-    /*    margin: 0;*/
-    /*    display: inline;*/
-    /*    !*overflow: hidden;*!*/
-    /*    !*display: -webkit-box;*!*/
-    /*    !*!*-webkit-line-clamp: 3;*!*!*/
-    /*    !*!*line-clamp: 3;*!*!*/
-    /*    !*!*-webkit-box-orient: vertical;*!*!*/
-    /*}*/
+  .blog-meta {
+    display: flex;
+    color: #888888;
+    font-size: 12px;
+    margin: 0 0 0 0.5em;
+  }
 
-    .blog-content {
-        color: rgba(255, 255, 255, 0.8);
-        font-style: italic;
-        border-radius: 16px;
-        padding: 20px;
-        line-height: 1.6;
-        box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.1), inset -4px -4px 10px rgba(0, 0, 0, 0.2);
-        max-width: 800px;
-        margin: 20px auto;
-        background-color: rgba(0, 0, 0, 0.05);
-        transition: all 0.2s ease-in-out;
-    }
+  .authors {
+    display: flex;
+    align-self: center;
+    white-space: nowrap;
+    overflow: hidden;
+  }
 
-    .blog-content:hover {
-        box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.3), inset -4px -4px 10px rgba(0, 0, 0, 0.25);
-        cursor: pointer;
-    }
+  .blog-date {
+    align-self: center;
+    white-space: nowrap;
+  }
 
+  .author-icon {
+    margin-right: 0.75em;
+    height: 0.8em;
+    width: 0.8em;
+    align-self: center;
+    color: #eeeeee;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><style>svg{fill:grey}<\/style><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512H418.3c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304H178.3z"/></svg>');
+    background-size: cover;
+  }
 
-    /*.highlighted {*/
-    /*    background: rgba(0, 0, 0, 1);*/
-    /*    padding: 2px 5px;*/
-    /*    border-radius: 5px;*/
-    /*}*/
+  .blog-content {
+    color: rgba(255, 255, 255, 0.8);
+    padding: 0.2em 0.8em;
+    line-height: 1.6;
+    margin: 0.75em auto;
+    transition: all 0.2s ease-in-out;
+    color: rgba(255, 255, 255, 0.8);
+    box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 10px rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 0.4em;
+    display: block;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    position: relative;
+  }
 
+  .blog-content:hover {
+    box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.3),
+      inset -4px -4px 10px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+  }
 
-    .blog-readmore {
-        color: #57b3ff;
-        font-size: 14px;
-        text-decoration: none;
-        display: block;
-        text-align: right;
-        margin: 6px 0 0 0;
-        padding: 0;
-    }
+  .blog-post {
+    font-family: Arial, sans-serif;
+    transition: box-shadow 0.2s;
+    background-color: #2c2c2c;
+    padding: 1.25em;
+    margin-bottom: 1em;
+    border-radius: 0.2em;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
 
-    .blog-readmore:hover {
-        text-decoration: underline;
-    }
+  .blog-post:hover {
+    background-color: #2e2e2e;
+  }
 
-    .blog-post {
-        font-family: Arial, sans-serif;
-        transition: box-shadow 0.2s;
-        background-color: #2c2c2c;
-        padding: 20px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    }
+  .blog-post:last-child {
+    margin-bottom: 0;
+  }
 
-    .blog-post:hover {
-        background-color: #2e2e2e;
-    }
+  .blog-post:hover {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  }
 
-    .blog-post:last-child {
-        margin-bottom: 0;
-    }
+  .blog-header {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+  }
 
-    .blog-post:hover {
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-    }
+  .blog-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 1;
+    gap: 0.2em;
+  }
 
+  .blog-logo {
+    height: 4em;
+    width: 4em;
+    margin-right: 1em;
+    border-radius: 0.2em;
+  }
+
+  .blog-title {
+    font-size: 24px;
+    margin: 0;
+  }
+
+  .blog-company {
+    font-size: 14px;
+    color: #ffffff80;
+  }
+
+  .blog-meta {
+    list-style-type: none;
+    gap: 16px;
+  }
+
+  .blog-categories {
+    overflow-x: auto;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    margin: 0.5em 0 0.5em 0;
+  }
+
+  .blog-categories span {
+    display: inline-block;
+    align-items: center;
+    padding: 0.5em 1em;
+    font-size: 12px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    transition: background-color 0.2s ease-in-out;
+    margin-right: 0.5em;
+  }
+
+  .blog-categories span:last-child {
+    margin-right: 0;
+  }
+
+  .blog-categories span:hover {
+    background-color: rgb(255, 255, 255, 0.15);
+    cursor: default;
+  }
+
+  .blog-categories::-webkit-scrollbar {
+    display: none;
+  }
+
+  .blog-categories {
+    scrollbar-width: none;
+  }
+
+  @media only screen and (max-width: 800px) {
     .blog-title {
-        font-size: 24px;
-        margin: 0;
-    }
-
-    .blog-meta {
-        display: flex;
-        margin-top: 10px;
-    }
-
-    .blog-meta .blog-categories {
-        align-items: start;
-
-        list-style-type: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .blog-meta {
-        list-style-type: none;
-        gap: 16px;
-    }
-
-    .blog-meta p {
-        list-style-type: none;
-        margin: 0 0 4px 0;
-    }
-
-    .blog-date {
-        color: #888888;
-        font-size: 12px;
-    }
-
-    .blog-company {
-        font-size: 16px;
-        color: #d5d5d5;
-    }
-
-    .blog-categories {
-        margin: 8px 0 0 0;
-    }
-
-    .blog-categories span {
-        display: inline-block;
-        align-items: center;
-        padding: 4px 10px;
-        font-size: 12px;
-        border-radius: 4px;
-        background-color: rgb(255, 255, 255, 0.08);
-        color: #c2c2c2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 180px;
-        transition: background-color 0.2s ease-in-out;
-    }
-
-    .blog-categories span:hover {
-        background-color: rgb(255, 255, 255, 0.15);
-        cursor: default;
-    }
-
-    .blog-header {
-        display: flex;
-        align-items: start;
-        margin-bottom: 10px;
+      font-size: 20px;
     }
 
     .blog-logo {
-        width: 60px;
-        height: auto;
-        margin-right: 15px;
+      height: 3em;
+      width: 3em;
+      margin-right: 0.8em;
     }
-
-    .blog-details {
-        flex: 1;
-    }
-
-    .blog-image-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 20px 0;
-    }
-
-    .blog-image {
-        max-width: 100%;
-        border-radius: 5px;
-    }
+  }
 </style>

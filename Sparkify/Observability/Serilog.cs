@@ -21,12 +21,16 @@ public static class SerilogRegistration
         return builder.Host.UseSerilog((context, loggerConfig) =>
         {
             loggerConfig.ReadFrom.Configuration(context.Configuration);
-            if (builder.Environment.IsDevelopment()) return;
+
+            if (builder.Environment.IsDevelopment())
+            {
+                return;
+            }
 
             loggerConfig.WriteTo.OpenTelemetry(opts =>
             {
-                opts.Endpoint = "http://192.168.1.200:4317";
-                opts.RestrictedToMinimumLevel = LogEventLevel.Error;
+                opts.Endpoint = builder.Configuration.GetValue<string>("Urls:Otlp");
+                opts.RestrictedToMinimumLevel = LogEventLevel.Information;
                 opts.ResourceAttributes = new Dictionary<string, object>
                 {
                     { "service.name", OpenTelemetry.DiagnosticsConfig.ServiceName },

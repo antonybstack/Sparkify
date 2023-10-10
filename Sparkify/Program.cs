@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
@@ -7,16 +8,22 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting.WindowsServices;
+using Sparkify;
 using Sparkify.Features.BlogFeatures;
 using Sparkify.Features.Payment;
 using Sparkify.Observability;
-
-// using Microsoft.Extensions.DependencyInjection.Extensions;
+using OpenTelemetry.Trace;
+using static Sparkify.Observability.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddWindowsService();
+
 ServicePointManager.DefaultConnectionLimit = 10000;
 
-int port = builder.Environment.IsDevelopment() ? 6002 : 443;
+var configuration = builder.Configuration;
+int port = configuration.GetValue<int>("Urls:App:Port");
 
 builder.WebHost
     .UseQuic()
@@ -39,15 +46,15 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         // if (builder.Environment.IsDevelopment())
-        if (true)
+        if (!builder.Environment.IsProduction())
         {
             policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
         }
         else
         {
-            policy.WithOrigins("https://sparkify.dev", "https://www.sparkify.dev")
+            policy.WithOrigins(configuration.GetSection("Urls:AllowedOrigins").Get<string[]>())
                 .AllowAnyHeader()
-                .WithMethods("GET");
+                .WithMethods(HttpMethods.Get);
         }
     });
 });
@@ -72,6 +79,8 @@ builder.Services.AddHttpClient<FaviconHttpClient>(static client =>
     client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
     // client.DefaultRequestVersion = new Version(2, 0);
 });
+
+builder.Services.AddSingleton(TracerProvider.Default.GetTracer(DiagnosticsConfig.ServiceName));
 
 // builder.Services.AddRateLimiter(static options =>
 // options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
@@ -99,6 +108,11 @@ builder.Services.AddHttpClient<FaviconHttpClient>(static client =>
 //     return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
 // }));
 
+DbManager.HttpUriString = configuration.GetValue<string>("Urls:RavenDb:Http");
+DbManager.TcpHostName = configuration.GetValue<string>("Urls:RavenDb:TcpHostName");
+DbManager.TcpPort = configuration.GetValue<int>("Urls:RavenDb:TcpPort");
+DbManager.Store.OpenSession();
+
 var app = builder.Build();
 
 app.UseHttpsRedirection();
@@ -120,44 +134,55 @@ else
     app.UseExceptionHandler("/Error");
 }
 
-const string htmlContent = """
-                           <!DOCTYPE html>
-                           <html lang=""en"">
-                               <head>
-                                   <meta charset=""UTF-8"">
-                                   <title>Sparkifyy</title>
-                                   <link rel=\"icon\" href=\"data:,\">
-                               </head>
-                               <body>
-                                   <h1>Sparkify</h1>
-                                   <body style=\"background: rgb(43, 42, 51); color: #333;\">Hello Sparkify!</body>
-                               </body>
-                           </html>
-                           """;
-app.MapGet("",
-    (HttpContext context) =>
-    {
-        context.Response.ContentType = "text/html";
-        return htmlContent;
-    });
-app.UseSwagger(
-    c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
-);
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.RoutePrefix = "api";
-    c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
-    c.DisplayRequestDuration();
-});
-app.MapGet("api/systeminfo",
-    async (HttpContext context, ILogger<Program> logger) =>
+    const string htmlContent = """
+                                <!DOCTYPE html>
+                                <html lang=""en"">
+                                    <head>
+                                        <title>Sparkifyy</title>
+                                        <link rel=\"icon\" href=\"data:,\">
+                                    </head>
+                                    <body>
+                                        <h1>Sparkify</h1>
+                                        <body style=\"background: rgb(43, 42, 51); color: #333;\">Hello Sparkify!</body>
+                                    </body>
+                                </html>
+                                """;
+    app.MapGet("",
+        (HttpContext context) =>
+        {
+            context.Response.ContentType = "text/html";
+            return htmlContent;
+        });
+    app.UseSwagger(
+        c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
+    );
+    app.UseSwaggerUI(c =>
     {
-        var systemInfo = new { RuntimeInformation.OSDescription, RuntimeInformation.OSArchitecture, RuntimeInformation.ProcessArchitecture, Environment.ProcessorCount, Environment.SystemPageSize };
-
-        logger.LogError("systeminfo executed!");
-        await context.Response.WriteAsJsonAsync(systemInfo);
+        c.RoutePrefix = "api";
+        c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
+        c.DisplayRequestDuration();
     });
-app.MapPaymentApi();
+    app.MapGet("api/systeminfo",
+        async (HttpContext context, ILogger<Program> logger) =>
+        {
+            var systemInfo = new { RuntimeInformation.OSDescription, RuntimeInformation.OSArchitecture, RuntimeInformation.ProcessArchitecture, Environment.ProcessorCount, Environment.SystemPageSize };
+
+            logger.LogInformation("systeminfo executed!");
+            logger.LogTrace("systeminfo executed trace!");
+
+            // Manual Instrumentation
+            using Activity? activity = DiagnosticsConfig.ActivitySource.StartActivity("RootActivity", ActivityKind.Server);
+            activity?.SetTag("foo", 1);
+            activity?.SetTag("bar", "Hello, World!");
+            activity?.SetTag("baz", new[] { 1, 2, 3 });
+
+            await context.Response.WriteAsJsonAsync(systemInfo);
+        });
+    app.MapPaymentApi();
+}
+
 app.MapBlogsApi();
 
 app.Map("error",
