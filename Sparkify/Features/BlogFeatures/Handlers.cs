@@ -241,6 +241,128 @@ internal static class ApiEndpointRouteBuilderExtensions
                 await session.SaveChangesAsync();
             });
 
+        // Create endpoint that returns all blogs and their attachments in an html view
+        routeGroup.MapGet("/blogs/attachments/{page}",
+                static async (HttpContext context, int page) =>
+                {
+                    context.Response.ContentType = "text/html";
+                    try
+                    {
+                        using var session = DbManager.Store.OpenAsyncSession();
+                        var blogs = await session.Advanced.AsyncDocumentQuery<Blog>()
+                            .OrderBy(static x => x.Company)
+                            .Skip((page - 1) * 10)
+                            .Take(page * 10)
+                            .ToArrayAsync();
+                        var sb = new StringBuilder();
+                        foreach (var blog in blogs)
+                        {
+                            sb.AppendLine($"<h2>{blog.Company}|{blog.Id}</h1>");
+                            var attachments = session.Advanced.Attachments.GetNames(blog);
+                            session.Advanced.GetMetadataFor(blog).TryGetValue("logo", out var currentLogo);
+                            sb.AppendLine(currentLogo is not null
+                                ? $"<p>current:<br><img src=\"/api/blog/{
+                                    blog.Id
+                                }/image/{
+                                    currentLogo
+                                }\" /><br>------</p>"
+                                : "N/A");
+                            foreach (var attachment in attachments)
+                            {
+                                if (attachment.Name == currentLogo)
+                                {
+                                    continue;
+                                }
+                                sb.AppendLine($"<p><img src=\"/api/blog/{blog.Id}/image/{attachment.Name}\" /></p>");
+                                sb.AppendLine($"<button onclick=\"deleteImage('{
+                                    blog.Id
+                                }', '{
+                                    attachment.Name
+                                }')\">Delete</button>");
+                                sb.AppendLine($"<button onclick=\"setAsLogo('{
+                                    blog.Id
+                                }', '{
+                                    attachment.Name
+                                }')\">Set as Logo</button>");
+                                sb.AppendLine("<br>");
+                            }
+                        }
+                        // context.Response.ContentType = "text/html";
+                        var htmlContent = $$"""
+                                            <script>
+                                                function deleteImage(blogId, imageName) {
+                                                    fetch(`/api/blog/${blogId}/image/${imageName}`, {
+                                                        method: 'DELETE',
+                                                        headers: {
+                                                            'Content-Type': 'application/x-www-form-urlencoded'
+                                                        }
+                                                    })
+                                                    .then(response => {
+                                                        if (response.ok) {
+                                                            location.reload(); // or handle this differently, maybe remove the image element from the page
+                                                        } else {
+                                                            alert('Failed to delete image');
+                                                        }
+                                                    })
+                                                    .catch(error => {
+                                                        console.error('There was an error!', error);
+                                                    });
+                                                }
+
+                                                function setAsLogo(blogId, imageName) {
+                                                    fetch(`/api/blog/${blogId}/image/${imageName}/set`, {
+                                                        method: 'PUT'
+                                                    })
+                                                    .then(response => {
+                                                        if (response.ok) {
+                                                            location.reload();
+                                                        } else {
+                                                            alert('Failed to set logo');
+                                                        }
+                                                    })
+                                                    .catch(error => {
+                                                        console.error('There was an error!', error);
+                                                    });
+                                                }
+                                            </script>
+                                            <!DOCTYPE html>
+                                            <html lang=""en"">
+                                                <head>
+                                                    <a href="/api/blog/blogs/attachments/{{
+                                                        (page > 1 ? page - 1 : 1)
+                                                    }}">Previous</a>
+                                                    <a href="/api/blog/blogs/attachments/{{
+                                                        page + 1
+                                                    }}">Next</a>
+                                                </head>
+                                                <body>
+                                                    <h1>Sparkify</h1>
+                                                    <body style=\"background: rgb(43, 42, 51); color: #333;\">{{
+                                                        sb
+                                                    }}</body>
+                                                </body>
+                                            </html>
+                                            """;
+
+                        await context.Response.WriteAsync(htmlContent);
+                    }
+                    catch (Exception e)
+                    {
+                        await context.Response.WriteAsync(e.Message);
+                    }
+                })
+            .AddEndpointFilter(static async (context, next) =>
+            {
+                var ipAddress = context.HttpContext.Request.HttpContext.Connection.RemoteIpAddress;
+                // if not local loopback, then return 404
+                if (ipAddress is null || !IPAddress.IsLoopback(ipAddress))
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.HttpContext.Response.WriteAsync("Forbidden");
+                }
+                return await next(context);
+            });
+
         routeGroup.MapGet("/blogs",
                 static async Task<string> () =>
                 {
