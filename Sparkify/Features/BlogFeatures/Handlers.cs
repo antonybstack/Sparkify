@@ -241,6 +241,34 @@ internal static class ApiEndpointRouteBuilderExtensions
                 await session.SaveChangesAsync();
             });
 
+        routeGroup.MapGet("/blogs",
+                static async Task<string> () =>
+                {
+                    try
+                    {
+                        using var session = DbManager.Store.OpenAsyncSession();
+                        var blogs = await session.Advanced.AsyncDocumentQuery<Blog>()
+                            .SelectFields<string>(nameof(Blog.Link))
+                            .ToArrayAsync();
+                        return string.Join("\r\n", blogs);
+                    }
+                    catch (Exception e)
+                    {
+                        return e.Message;
+                    }
+                })
+            .AddEndpointFilter(static async (context, next) =>
+            {
+                var ipAddress = context.HttpContext.Request.HttpContext.Connection.RemoteIpAddress;
+                // if not local loopback, then return 404
+                if (ipAddress is null || !IPAddress.IsLoopback(ipAddress))
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.HttpContext.Response.WriteAsync("Forbidden");
+                }
+                return await next(context);
+            });
+
         return routeGroup;
     }
 
