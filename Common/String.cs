@@ -1,11 +1,82 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Common;
 
 public static class StringExtensions
 {
+    private const string Ellipsis = "...";
+
+    // TODO: consider employing Knuth-Morris-Pratt (KMP), Aho-Corasick, Boyer-Moore, Rabin-Karp, or other string search algorithms
+    public static string HighlightMatches(string? content, string query, bool wrapInEllipses = false)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+        var trie = new Trie().BuildTrie(query);
+        var highlightedContent = new StringBuilder();
+        if (wrapInEllipses)
+        {
+            highlightedContent.Append(Ellipsis);
+        }
+        var currentWord = new StringBuilder();
+        foreach (var c in content)
+        {
+            if (char.IsAsciiLetterOrDigit(c))
+            {
+                currentWord.Append(c);
+            }
+            else
+            {
+                ProcessCurrentWord();
+                // If you need to add non-word characters (like spaces or punctuation) back into the result:
+                highlightedContent.Append(c);
+            }
+        }
+
+        // Process the last word
+        ProcessCurrentWord();
+        if (wrapInEllipses)
+        {
+            highlightedContent.Append(Ellipsis);
+        }
+        return highlightedContent.ToString().TrimEnd();
+
+        void ProcessCurrentWord()
+        {
+            if (currentWord.Length > 0)
+            {
+                var normalizedWord = currentWord.ToString().ToLowerInvariant();
+                var lengthToHighlight = 0;
+                try
+                {
+                    lengthToHighlight = trie.SearchLongestMatch(normalizedWord) ?? 0;
+                }
+                catch (Exception)
+                {
+                    Debug.WriteLine($"Failed to search for '{normalizedWord}' in trie");
+                }
+
+                if (lengthToHighlight > 0)
+                {
+                    highlightedContent.Append("<mark>");
+                    highlightedContent.Append(currentWord.ToString().Substring(0, lengthToHighlight));
+                    highlightedContent.Append("</mark>");
+                    highlightedContent.Append(currentWord.ToString().Substring(lengthToHighlight));
+                }
+                else
+                {
+                    highlightedContent.Append(currentWord.ToString());
+                }
+                currentWord.Clear();
+            }
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string RemoveInPlaceCharArray(string input)
     {
