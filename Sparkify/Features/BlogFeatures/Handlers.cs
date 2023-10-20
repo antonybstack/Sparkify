@@ -1,22 +1,436 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.Linq.Expressions;
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Nager.PublicSuffix;
+using OpenTelemetry.Trace;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Queries.Highlighting;
+using Raven.Client.Documents.Queries.Suggestions;
+using Raven.Client.Documents.Session;
 using Common;
 using SkiaSharp;
+using Sparkify.Indexes;
 using Svg.Skia;
 
 namespace Sparkify.Features.BlogFeatures;
 
+/* TODO: Features
+Regex Flag
+AND, OR, NOT flags
+Search by author
+Search by tags
+ limit search to 256 chars?
+ onclick content makes call to full content and expands
+ - use on hover preload
+ */
+
 internal static class ApiEndpointRouteBuilderExtensions
 {
+    private const string TitleFieldName = nameof(Article.Title);
+    // private const string StartTag = "<b style=\"background:rgba(0, 180, 145, 0.5); color: rgba(255, 255, 255, 0.8);\">";
+    // private const string EndTag = "</b>";
+    // private const string StartTag = "<b><mark>";
+    // private const string EndTag = "</mark></b>";
+    // private const string StartDelimiter = "ßßßßß";
+    // private const string EndDelimiter = "ΩΩΩΩΩ";
+    private const string StartTag = "...";
+    private const string EndTag = "...";
+    private const string StartDelimiter = "";
+    private const string EndDelimiter = "";
+    private const string Ellipsis = "...";
+    private static readonly Expression<Func<ArticleIndex.ArticleSearchResults, string>> _titleSelectorString =
+        static x => x.Title;
+    private static readonly Expression<Func<ArticleIndex.ArticleSearchResults, object>> _titleSelectorObject =
+        static x => x.Title;
+    private static readonly Expression<Func<ArticleIndex.ArticleSearchResults, string>> _contentSelectorString =
+        static x => x.Content;
+    private static readonly Expression<Func<ArticleIndex.ArticleSearchResults, object>> _contentSelectorObject =
+        static x => x.Content;
+    private static readonly string[] _fields =
+    {
+        nameof(ArticleIndex.ArticleSearchResults.Id),
+        nameof(ArticleIndex.ArticleSearchResults.BlogId),
+        nameof(ArticleIndex.ArticleSearchResults.Title),
+        nameof(ArticleIndex.ArticleSearchResults.Content),
+        nameof(ArticleIndex.ArticleSearchResults.Categories),
+        nameof(ArticleIndex.ArticleSearchResults.Authors),
+        nameof(ArticleIndex.ArticleSearchResults.Link),
+        nameof(ArticleIndex.ArticleSearchResults.Date)
+    };
+    private static readonly string[] _fieldsNoTitle =
+    {
+        nameof(ArticleIndex.ArticleSearchResults.Id),
+        nameof(ArticleIndex.ArticleSearchResults.Link),
+        nameof(ArticleIndex.ArticleSearchResults.Date)
+    };
+    private static readonly IEnumerable<SuggestionWithTerm> _suggestions = new[]
+    {
+        new SuggestionWithTerm(TitleFieldName)
+        {
+            Options = new SuggestionOptions
+            {
+                Accuracy = 0.2f,
+                PageSize = 3,
+                Distance = StringDistanceTypes.Levenshtein,
+                SortMode = SuggestionSortMode.Popularity
+            }
+        },
+        new SuggestionWithTerm(TitleFieldName)
+        {
+            Options = new SuggestionOptions
+            {
+                Accuracy = 0.2f,
+                PageSize = 3,
+                Distance = StringDistanceTypes.JaroWinkler,
+                SortMode = SuggestionSortMode.Popularity
+            }
+        },
+        new SuggestionWithTerm(TitleFieldName)
+        {
+            Options = new SuggestionOptions
+            {
+                Accuracy = 0.2f,
+                PageSize = 3,
+                Distance = StringDistanceTypes.NGram,
+                SortMode = SuggestionSortMode.Popularity
+            }
+        }
+    };
+    private static readonly HighlightingOptions _tagsToUse = new()
+    {
+        PreTags = new[]
+        {
+            StartDelimiter
+        },
+        PostTags = new[]
+        {
+            EndDelimiter
+        }
+    };
+    private static readonly string _cacheControl12Hour =
+        $"public,max-age={TimeSpan.FromHours(12).TotalSeconds.ToString(CultureInfo.InvariantCulture)}";
+
+    private static readonly string _cacheControl5Minute =
+        $"public,max-age={TimeSpan.FromMinutes(5).TotalSeconds.ToString(CultureInfo.InvariantCulture)}";
+
     public static IEndpointConventionBuilder MapBlogsApi(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         var routeGroup = endpoints.MapGroup("api/blog");
+
+        routeGroup.MapGet("/search",
+            static async Task<Results<Ok<Payload<IEnumerable<ArticleIndex.Base>>>, NotFound, ProblemHttpResult>> (
+                HttpContext context,
+                Tracer tracer,
+                string query,
+                int? page) =>
+            {
+                context.Response.Headers.CacheControl = _cacheControl5Minute;
+
+                using var searchSpan = tracer.StartActiveSpan("Search");
+                var startTime = Stopwatch.GetTimestamp();
+
+                using var session = DbManager.Store.OpenAsyncSession();
+
+                QueryStatistics? stats;
+                ArticleIndex.Base[] articles;
+                CleanQuery(query, out var queryCleaned);
+                var queryProcessed = CleanQueryAndAddWildcard(ref query);
+                using var executeQuerySpan = tracer.StartActiveSpan("ExecuteSearchQuery");
+                if (!queryProcessed)
+                {
+                    executeQuerySpan.SetAttribute("Query", string.Empty);
+                    articles = await session.Query<ArticleIndex.Base, ArticleIndex>()
+                        .Statistics(out stats)
+                        .OrderByDescending(static x => x.Id)
+                        .Skip(((page ?? 1) - 1) * 10)
+                        .Take(10)
+                        .ProjectInto<ArticleIndex.ArticleNoSearchResults>()
+                        .ToArrayAsync();
+                }
+                else
+                {
+                    var queryWithoutWildCard = string.Create(
+                        query.Length - 1,
+                        query,
+                        static (span, original) => original.AsSpan()[..^1].CopyTo(span));
+                    Debug.WriteLine($"'{query}'");
+                    Debug.WriteLine($"{queryWithoutWildCard}'");
+                    Debug.WriteLine("-----");
+                    executeQuerySpan.SetAttribute("Query", query);
+                    executeQuerySpan.SetAttribute("QueryWithoutWildcard", queryWithoutWildCard);
+                    // custom highlight with RQL https://ravendb.net/docs/article-page/6.0/csharp/client-api/session/querying/text-search/highlight-query-results#highlight---customize-tags
+                    // can also stream results: https://ravendb.net/docs/article-page/6.0/Csharp/client-api/session/querying/how-to-stream-query-results#stream-related-documents
+
+                    IAsyncDocumentQuery<ArticleIndex.ArticleSearchResults>? documentQuery;
+                    /*
+                     You could optimize by aggregating all fields into one field and then searching that field,
+                     and include separaters between the fields so that you can highlight the field that matched.
+                     */
+
+                    if (query.Contains(' ', StringComparison.OrdinalIgnoreCase))
+                    {
+                        documentQuery = session.Advanced
+                            .AsyncDocumentQuery<ArticleIndex.ArticleSearchResults, ArticleIndex>()
+                            // Content all words && Title all words
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard, SearchOperator.And)
+                            .AndAlso()
+                            .Search(_contentSelectorString, queryWithoutWildCard, SearchOperator.And)
+                            .CloseSubclause()
+                            .Boost(100M)
+                            .OrElse()
+                            // Content all words || Title all words
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard, SearchOperator.And)
+                            .OrElse()
+                            .Search(_contentSelectorString, queryWithoutWildCard, SearchOperator.And)
+                            .CloseSubclause()
+                            .Boost(95M)
+                            .OrElse()
+                            // Title all words && content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard, SearchOperator.And)
+                            .AndAlso()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(90M)
+                            .OrElse()
+                            // Title all words (*) && Content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, query, SearchOperator.And)
+                            .AndAlso()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(80M)
+                            .OrElse()
+                            // Title all words (proximity) && content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .AndAlso()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(100M)
+                            .OrElse()
+                            // Title all words (*) || Content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, query, SearchOperator.And)
+                            .OrElse()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(60M)
+                            .OrElse()
+                            // Title all words (proximity) || content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .OrElse()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(50M)
+                            .OrElse()
+                            // Title any words (anywhere) || content all words (proximity)
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, query, SearchOperator.Or)
+                            .OrElse()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .Proximity(8)
+                            .CloseSubclause()
+                            .Boost(40M);
+                    }
+                    else
+                    {
+                        documentQuery = session.Advanced
+                            .AsyncDocumentQuery<ArticleIndex.ArticleSearchResults, ArticleIndex>()
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard)
+                            .AndAlso()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .CloseSubclause()
+                            .Boost(100M)
+                            //
+                            .OrElse()
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, query)
+                            .AndAlso()
+                            .Search(_contentSelectorString, query)
+                            .CloseSubclause()
+                            .Boost(90M)
+                            //
+                            .OrElse()
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, queryWithoutWildCard)
+                            .OrElse()
+                            .Search(_contentSelectorString, queryWithoutWildCard)
+                            .CloseSubclause()
+                            .Boost(50M)
+                            //
+                            .OrElse()
+                            .OpenSubclause()
+                            .Search(_titleSelectorString, query)
+                            .OrElse()
+                            .Search(_contentSelectorString, query)
+                            .CloseSubclause()
+                            .Boost(40M);
+                    }
+
+                    articles = await documentQuery.ToQueryable()
+                        .Statistics(out stats)
+                        // .Highlight(static x => x.Title, 200, 4, _tagsToUse, out var titleHighlights)
+                        .Highlight(static x => x.Content, 120, 4, _tagsToUse, out var contentHighlights)
+                        .ProjectInto<ArticleIndex.ArticleSearchResults>()
+                        .Skip(((page ?? 1) - 1) * 10)
+                        .Take(10)
+                        .ToArrayAsync();
+
+                    foreach (var article in articles)
+                    {
+                        // if (titleHighlights.GetFragments(article.Id).Length is not 0)
+                        // {
+                        // article.Title = ModifyHighlight(titleHighlights.GetFragments(article.Id).FirstOrDefault(), queryCleaned) ?? article.Title;
+                        article.Title = StringExtensions.HighlightMatches(article.Title, queryCleaned);
+                        // }
+                        if (contentHighlights.GetFragments(article.Id).Length is not 0)
+                        {
+                            article.Content = StringExtensions.HighlightMatches(string.Join(Ellipsis,
+                                    contentHighlights.GetFragments(article.Id)
+                                        .Select(static s => s.Trim())),
+                                queryCleaned,
+                                true);
+                            // article.Content = article.Content.Replace("  ", " ");
+                            // article.Content = ModifyContentHighlight(
+                            //     string.Join(Ellipsis,
+                            //         contentHighlights.GetFragments(article.Id)
+                            //             .Select(static s => s.Trim())),
+                            //     queryCleaned);
+                        }
+                        // if (titleHighlights.GetFragments(article.Id).Length is not 0)
+                        // {
+                        //     article.Title = titleHighlights.GetFragments(article.Id).FirstOrDefault() ?? article.Title;
+                        // }
+                        // if (contentHighlights.GetFragments(article.Id).Length is not 0)
+                        // {
+                        //     article.Content =
+                        //         string.Join(Ellipsis,
+                        //             contentHighlights.GetFragments(article.Id)
+                        //                 .Select(static s => s.Trim()));
+                        // }
+                    }
+                }
+
+                if (stats.TotalResults is 0)
+                {
+                    using var executeSuggestionQuerySpan = tracer.StartActiveSpan("ExecuteSuggestionQuery");
+                    var suggestionsTasks = _suggestions
+                        .Select(request =>
+                        {
+                            request.Term = query;
+                            return session.Advanced
+                                .AsyncDocumentQuery<ArticleIndex.ArticleSearchResults, ArticleIndex>()
+                                .SuggestUsing(request)
+                                .ExecuteLazyAsync();
+                        })
+                        .ToArray();
+
+                    var freqMap = new Dictionary<string, int>();
+                    foreach (var resultTask in suggestionsTasks)
+                    {
+                        if (!(await resultTask.Value).TryGetValue(TitleFieldName, out var suggestionResult))
+                        {
+                            continue;
+                        }
+                        foreach (var suggestion in suggestionResult.Suggestions)
+                        {
+                            freqMap.TryGetValue(suggestion, out var count);
+                            freqMap[suggestion] = count + 1;
+                        }
+                    }
+                    var minHeap = new PriorityQueue<(string suggestion, int freq), int>(3);
+                    foreach (var entry in freqMap)
+                    {
+                        if (minHeap.Count < 3)
+                        {
+                            minHeap.Enqueue((entry.Key, entry.Value), entry.Value);
+                        }
+                        else if (entry.Value > minHeap.Peek().freq)
+                        {
+                            minHeap.Dequeue();
+                            minHeap.Enqueue((entry.Key, entry.Value), entry.Value);
+                        }
+                    }
+
+                    articles = new ArticleIndex.ArticleSearchResults[minHeap.Count];
+                    var i = 0;
+                    while (minHeap.TryDequeue(out var suggestion, out _))
+                    {
+                        articles[i++] = new ArticleIndex.ArticleSearchResults
+                        {
+                            Title = suggestion.suggestion
+                        };
+                    }
+                }
+                // remove empty strings in each authors collection
+                // foreach (var article in articles)
+                // {
+                //     article.Authors = article.Authors?
+                //         .Where(static x => !string.IsNullOrWhiteSpace(x))
+                //         .ToArray();
+                // }
+                return TypedResults.Ok(
+                    new Payload<IEnumerable<ArticleIndex.Base>>
+                    {
+                        Data = articles,
+                        Stats = new RequestStatistics
+                        {
+                            DurationInMs = Stopwatch.GetElapsedTime(startTime).Milliseconds,
+                            TotalResults = stats.TotalResults
+                        }
+                    }
+                );
+            });
+
+        routeGroup.MapGet("blogs/{id}/image/{name}",
+            static async Task<Results<FileStreamHttpResult, NotFound, ProblemHttpResult>> (HttpContext context,
+                string id,
+                string name) =>
+            {
+                context.Response.Headers.CacheControl = _cacheControl12Hour;
+                using var session = DbManager.Store.OpenAsyncSession();
+
+                var attachment = await session.Advanced.Attachments.GetAsync($"blogs/{id}", name);
+                if (attachment is null)
+                {
+                    return TypedResults.NotFound();
+                }
+                var entityTag = new EntityTagHeaderValue($"\"{attachment.Details.ChangeVector}\"");
+
+                using var memoryStream = new MemoryStream();
+                await attachment.Stream.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+                var image = SKBitmap.Decode(memoryStream);
+                var aspectRatio = (float)image.Width / image.Height;
+                var scaledBitmap = image.Resize(new SKImageInfo(120, (int)(120 / aspectRatio)), SKFilterQuality.High);
+                var scaledImage = SKImage.FromBitmap(scaledBitmap);
+                var data = scaledImage.Encode(SKEncodedImageFormat.Png, 100);
+
+                return TypedResults.File(new MemoryStream(data.ToArray()),
+                    attachment.Details.ContentType,
+                    attachment.Details.Name,
+                    entityTag: entityTag);
+            });
 
         routeGroup.MapDelete("blogs/{id}/image/{name}",
             static async Task<Results<NoContent, NotFound, ProblemHttpResult>> (string id, string name) =>
@@ -228,6 +642,11 @@ internal static class ApiEndpointRouteBuilderExtensions
 
                 foreach (var blog in blogs)
                 {
+                    // session.Advanced.GetMetadataFor(blog).TryGetValue("logo", out var logoMeta);
+                    // if (logoMeta is not null && !logoMeta.Contains(".png", StringComparison.InvariantCultureIgnoreCase))
+                    // {
+                    //     session.Advanced.GetMetadataFor(blog)["logo"] += ".png";
+                    // }
                     var attachments = session.Advanced.Attachments.GetNames(blog);
                     foreach (var attachment in attachments)
                     {
@@ -379,6 +798,7 @@ internal static class ApiEndpointRouteBuilderExtensions
                         return e.Message;
                     }
                 })
+            // .Produces<string>(contentType: "text/plain")
             .AddEndpointFilter(static async (context, next) =>
             {
                 var ipAddress = context.HttpContext.Request.HttpContext.Connection.RemoteIpAddress;
@@ -392,6 +812,17 @@ internal static class ApiEndpointRouteBuilderExtensions
             });
 
         return routeGroup;
+    }
+
+    private static IEnumerable<string> GetSuggestions(Dictionary<string, SuggestionResult> result)
+    {
+        if (result.TryGetValue(TitleFieldName, out var suggestionResult) && suggestionResult.Suggestions.Count is not 0)
+        {
+            foreach (var suggestion in suggestionResult.Suggestions)
+            {
+                yield return suggestion;
+            }
+        }
     }
 
     public static byte[] Svg2Png(byte[] svgArray)
@@ -420,5 +851,234 @@ internal static class ApiEndpointRouteBuilderExtensions
                 throw new Exception("Failed to convert to png");
             }
         }
+    }
+
+    private static string? ModifyHighlight(ReadOnlySpan<char> inputSpan, ReadOnlySpan<char> querySpan)
+    {
+        if (inputSpan.IsEmpty || querySpan.IsEmpty)
+        {
+            return null;
+        }
+
+        var result = new StringBuilder();
+        var segments = inputSpan.ToString().Split(StartDelimiter);
+        foreach (var segment in segments)
+        {
+            if (segment.Contains(EndDelimiter, StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = segment.Split(EndDelimiter, StringSplitOptions.RemoveEmptyEntries);
+                var highlighted = parts.First().AsSpan();
+                var index = 0;
+                var res = StringExtensions.HighlightMatches(highlighted.ToString(), querySpan.ToString());
+                // compare two strings, continue to iterate until characters don't match, ignore case and non-alphanumeric characters
+                // while (index < querySpan.Length)
+                // {
+                //     if (querySpan[index] == highlighted[index])
+                //     {
+                //         index++;
+                //     }
+                //     else if (querySpan[index] == highlighted[index] && char.IsPunctuation(highlighted[index]))
+                //     {
+                //         index++;
+                //     }
+                //     else
+                //     {
+                //         break;
+                //     }
+                // }
+                // result.Append(StartTag)
+                //     .Append(highlighted[..index])
+                //     .Append(EndTag)
+                //     .Append(highlighted[index..]);
+                result.Append(res);
+                if (parts.Length > 1)
+                {
+                    result.Append(parts[1]);
+                }
+            }
+            else
+            {
+                result.Append(segment);
+            }
+        }
+        return result.ToString();
+    }
+
+    private static string? ModifyContentHighlight(ReadOnlySpan<char> inputSpan, ReadOnlySpan<char> querySpan)
+    {
+        if (inputSpan.IsEmpty || querySpan.IsEmpty)
+        {
+            return null;
+        }
+        var resultRawLength = 0;
+        var result = new StringBuilder();
+        result.Append("<em>\"...");
+        var segments = inputSpan.ToString().Split(StartDelimiter, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var segment in segments)
+        {
+            if (resultRawLength > 360)
+            {
+                break;
+            }
+            if (segment.Contains(EndDelimiter, StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = segment.Split(EndDelimiter, StringSplitOptions.RemoveEmptyEntries);
+                var highlighted = parts.First().Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' ').AsSpan();
+                var index = 0;
+                while (index < highlighted.Length)
+                {
+                    if (querySpan.IndexOf(highlighted[..(index + 1)], StringComparison.OrdinalIgnoreCase) != -1)
+                    {
+                        index++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                result.Append(StartTag)
+                    .Append(highlighted[..index])
+                    .Append(EndTag)
+                    .Append(highlighted[index..]);
+                resultRawLength += highlighted.Length;
+                if (parts.Length > 1)
+                {
+                    if (char.IsAsciiLetter(parts[1][0]))
+                    {
+                        result.Append(Ellipsis);
+                        result.Append(parts[1].TrimStart());
+                        resultRawLength += Ellipsis.Length + parts[1].Length;
+                    }
+                    else
+                    {
+                        result.Append(parts[1]);
+                        resultRawLength += parts[1].Length;
+                    }
+                }
+            }
+            else
+            {
+                result.Append(segment);
+                resultRawLength += segment.Length;
+            }
+        }
+        result.Append("...\"</em>");
+        return result.ToString();
+    }
+
+    private static bool CleanQueryAndAddWildcard(ref string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return false;
+        }
+
+        StringBuilder sb = new(query.Length);
+        var i = 0;
+
+        while (i < query.Length && char.IsWhiteSpace(query[i]))
+        {
+            ++i;
+        }
+
+        while (i < query.Length)
+        {
+            if (i < query.Length &&
+                (char.IsAsciiLetterOrDigit(query[i]) || char.IsPunctuation(query[i])) &&
+                (i == 0 || !char.IsAsciiLetterOrDigit(query[i - 1])))
+            {
+                var start = i;
+                while (i < query.Length && (char.IsAsciiLetterOrDigit(query[i]) || char.IsPunctuation(query[i])))
+                {
+                    ++i;
+                }
+                if (!StringExtensions.StopWords.Contains(query.AsSpan(start, i - start)))
+                {
+                    sb.Append(query, start, i - start);
+                    if (i < query.Length)
+                    {
+                        sb.Append(' ');
+                    }
+                }
+            }
+            else if (char.IsWhiteSpace(query[i]))
+            {
+                while (i + 1 < query.Length && char.IsWhiteSpace(query[i + 1]))
+                {
+                    ++i;
+                }
+                ++i;
+            }
+            else
+            {
+                if (sb.Length is not 0 && !char.IsWhiteSpace(sb[^1]))
+                {
+                    sb.Append(' ');
+                }
+                ++i;
+            }
+        }
+
+        if (sb.Length is 0)
+        {
+            return false;
+        }
+
+        while (char.IsWhiteSpace(sb[^1]))
+        {
+            sb.Length--;
+        }
+        query = sb.Append('*').ToString();
+
+        return sb.Length is not 0;
+    }
+
+    private static void CleanQuery(string query, out string queryCleaned)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            queryCleaned = string.Empty;
+            return;
+        }
+
+        StringBuilder sb = new(query.Length);
+
+        var i = 0;
+
+        // Trim leading whitespace
+        while (i < query.Length && char.IsWhiteSpace(query[i]))
+        {
+            ++i;
+        }
+
+        // include alphanumeric and whitespace characters
+        while (i < query.Length)
+        {
+            if (char.IsWhiteSpace(query[i]))
+            {
+                while (i + 1 < query.Length && char.IsWhiteSpace(query[i + 1]))
+                {
+                    ++i;
+                }
+                sb.Append(' ');
+            }
+            else
+            {
+                sb.Append(query[i]);
+            }
+            ++i;
+        }
+
+        if (sb.Length is 0)
+        {
+            queryCleaned = string.Empty;
+            return;
+        }
+
+        while (char.IsWhiteSpace(sb[^1]))
+        {
+            sb.Length--;
+        }
+        queryCleaned = sb.ToString();
     }
 }
