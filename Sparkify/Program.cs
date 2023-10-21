@@ -37,6 +37,13 @@ builder.Services.AddHttpsRedirection(options => options.HttpsPort = appOptions.P
 
 builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin()));
 builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddControllers(options =>
+{
+    options.RespectBrowserAcceptHeader = true;
+    options.InputFormatters.Add(new Formatters.TextPlainInputFormatter());
+    options.InputFormatters.Add(new Formatters.RawRequestBodyFormatter());
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApiDocument();
 
