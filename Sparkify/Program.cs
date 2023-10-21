@@ -33,6 +33,7 @@ builder.WebHost
 });
 
 builder.Services.AddHttpsRedirection(options => options.HttpsPort = 6002);
+builder.Services.AddHttpsRedirection(options => options.HttpsPort = appOptions.Port);
 
 builder.Services.AddCors(c => c.AddDefaultPolicy(policy => policy.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin()));
 builder.Services.Configure<JsonOptions>(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -54,6 +55,7 @@ builder.Services.AddHostedService<SubscriptionWorker>();
 
 WebApplication app = builder.Build();
 
+DbManager.CreateStore(databaseOptions.Name, databaseOptions.Http, databaseOptions.TcpHostName, databaseOptions.TcpPort);
 app.UseHttpsRedirection();
 app.RegisterSerilogRequestLogging();
 app.LogStartupInfo(builder);
