@@ -11,11 +11,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Data", "Data\Data.csproj", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Benchmarking", "Benchmarking\Benchmarking.csproj", "{705317F8-EB6E-42B5-B29E-E6C5E794927F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "otel", "otel\otel.csproj", "{4F40378D-1DC9-4966-B73D-F7144A18BB71}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FeedProcessor", "FeedProcessor\FeedProcessor.csproj", "{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shared", "Shared\Shared.csproj", "{B9909D6E-C80B-4771-980E-A190FEE92BAF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Common", "Common\Common.csproj", "{B9909D6E-C80B-4771-980E-A190FEE92BAF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,10 +37,6 @@ Global
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{705317F8-EB6E-42B5-B29E-E6C5E794927F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4F40378D-1DC9-4966-B73D-F7144A18BB71}.Release|Any CPU.Build.0 = Release|Any CPU
 		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ECA8AAE2-6D37-4112-8AE9-5E2F8A885332}.Release|Any CPU.ActiveCfg = Release|Any CPU

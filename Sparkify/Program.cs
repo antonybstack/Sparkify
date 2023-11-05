@@ -1,20 +1,16 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
+using Common.Configuration;
+using Common.Observability;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting.WindowsServices;
 using Sparkify;
 using Sparkify.Features.BlogFeatures;
-using Sparkify.Features.Payment;
-using Sparkify.Observability;
-using OpenTelemetry.Trace;
-using static Sparkify.Observability.OpenTelemetry;
+using JsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,54 +18,73 @@ builder.Services.AddWindowsService();
 
 ServicePointManager.DefaultConnectionLimit = 10000;
 
-var configuration = builder.Configuration;
-int port = configuration.GetValue<int>("Urls:App:Port");
+var appOptions = builder.AddConfigAndValidate<ApiOptions, ValidateApiOptions>();
+var databaseOptions = builder.AddConfigAndValidate<DatabaseOptions, ValidateDatabaseOptions>();
+var otlpOptions = builder.AddConfigAndValidate<OtlpOptions, ValidateOtlpOptions>();
 
 builder.WebHost
     .UseQuic()
-    .UseKestrel(options =>
+    .UseKestrel((hostingContext, options) =>
     {
-        options.ListenAnyIP(port,
+        options.ListenAnyIP(appOptions.Port,
             listenOptions =>
             {
                 listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
                 listenOptions.UseHttps();
-                // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/connection-middleware?view=aspnetcore-8.0
-                // listenOptions.UseConnectionLogging();
+                if (hostingContext.HostingEnvironment.IsDevelopment())
+                {
+                    listenOptions.UseConnectionLogging();
+                }
             });
     });
 
-builder.Services.AddHttpsRedirection(options => options.HttpsPort = port);
+// builder.Services.AddAntiforgery();
+
+builder.Services.AddHttpsRedirection(options => options.HttpsPort = appOptions.Port);
+
 // string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        // if (builder.Environment.IsDevelopment())
         if (!builder.Environment.IsProduction())
         {
             policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
         }
         else
         {
-            policy.WithOrigins(configuration.GetSection("Urls:AllowedOrigins").Get<string[]>())
+            policy.WithOrigins(appOptions.AllowedOrigins)
                 .AllowAnyHeader()
                 .WithMethods(HttpMethods.Get);
         }
     });
 });
-builder.Services.Configure<JsonOptions>(options =>
+builder.Services.Configure<JsonOptions>(static options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault;
 });
 
+builder.Services.AddControllers(options =>
+{
+    options.RespectBrowserAcceptHeader = true;
+    // options.ReturnHttpNotAcceptable = true;
+    options.InputFormatters.Add(new Formatters.TextPlainInputFormatter());
+    options.InputFormatters.Add(new Formatters.RawRequestBodyFormatter());
+});
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c => c.UseInlineDefinitionsForEnums());
+builder.Services.AddOpenApiDocument();
+
+// builder.Services.AddSwaggerGen(c =>
+// {
+//     c.UseInlineDefinitionsForEnums();
+//     // c.AddMissingSchemas();
+// });
 builder.RegisterOpenTelemetry();
-builder.RegisterSerilog();
+builder.RegisterSerilog(otlpOptions);
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
-builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
+// builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
 // builder.Services.AddHostedService<SubscriptionWorker>();
 builder.Services.AddHttpClient<FaviconHttpClient>(static client =>
 {
@@ -80,7 +95,13 @@ builder.Services.AddHttpClient<FaviconHttpClient>(static client =>
     // client.DefaultRequestVersion = new Version(2, 0);
 });
 
-builder.Services.AddSingleton(TracerProvider.Default.GetTracer(DiagnosticsConfig.ServiceName));
+// builder.Services.Configure<ForwardedHeadersOptions>(static options =>
+// {
+//     options.ForwardedHeaders =
+//         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+// });
+
+// builder.Services.AddResponseCaching();
 
 // builder.Services.AddRateLimiter(static options =>
 // options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
@@ -107,18 +128,26 @@ builder.Services.AddSingleton(TracerProvider.Default.GetTracer(DiagnosticsConfig
 //     }
 //     return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
 // }));
-
-DbManager.HttpUriString = configuration.GetValue<string>("Urls:RavenDb:Http");
-DbManager.TcpHostName = configuration.GetValue<string>("Urls:RavenDb:TcpHostName");
-DbManager.TcpPort = configuration.GetValue<int>("Urls:RavenDb:TcpPort");
-DbManager.Store.OpenSession();
-
+//
+// DbManager.HttpUriString = configuration.GetValue<string>("Urls:RavenDb:Http");
+// DbManager.TcpHostName = configuration.GetValue<string>("Urls:RavenDb:TcpHostName");
+// DbManager.TcpPort = configuration.GetValue<int>("Urls:RavenDb:TcpPort");
+DbManager.CreateStore(databaseOptions.Name, databaseOptions.Http, databaseOptions.TcpHostName, databaseOptions.TcpPort);
 var app = builder.Build();
 
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
+
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseRouting();
+// app.UseAntiforgery();
 // app.UseRateLimiter();
 app.UseCors();
+// app.UseResponseCaching();
+
 app.RegisterSerilogRequestLogging();
 app.LogStartupInfo(builder);
 
@@ -136,51 +165,65 @@ else
 
 if (app.Environment.IsDevelopment())
 {
-    const string htmlContent = """
-                                <!DOCTYPE html>
-                                <html lang=""en"">
-                                    <head>
-                                        <title>Sparkifyy</title>
-                                        <link rel=\"icon\" href=\"data:,\">
-                                    </head>
-                                    <body>
-                                        <h1>Sparkify</h1>
-                                        <body style=\"background: rgb(43, 42, 51); color: #333;\">Hello Sparkify!</body>
-                                    </body>
-                                </html>
-                                """;
+    // app.UseSwagger(
+    //     c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
+    // );
+    // app.UseSwaggerUI(c =>
+    // {
+    //     c.RoutePrefix = "api";
+    //     c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
+    //     c.DisplayRequestDuration();
+    // });
+
+    const string HtmlContent = """
+                               <!DOCTYPE html>
+                               <html lang=""en"">
+                                   <head>
+                                       <title>Sparkifyy</title>
+                                       <link rel=\"icon\" href=\"data:,\">
+                                   </head>
+                                   <body>
+                                       <h1>Sparkify</h1>
+                                       <body style=\"background: rgb(43, 42, 51); color: #333;\">Hello Sparkify!</body>
+                                   </body>
+                               </html>
+                               """;
     app.MapGet("",
         (HttpContext context) =>
         {
             context.Response.ContentType = "text/html";
-            return htmlContent;
+            return HtmlContent;
         });
-    app.UseSwagger(
-        c => { c.RouteTemplate = "api/{documentName}/swagger.json"; } // documentName is version number
-    );
-    app.UseSwaggerUI(c =>
-    {
-        c.RoutePrefix = "api";
-        c.SwaggerEndpoint("v1/swagger.json", "Sparkify API v1");
-        c.DisplayRequestDuration();
-    });
-    app.MapGet("api/systeminfo",
-        async (HttpContext context, ILogger<Program> logger) =>
-        {
-            var systemInfo = new { RuntimeInformation.OSDescription, RuntimeInformation.OSArchitecture, RuntimeInformation.ProcessArchitecture, Environment.ProcessorCount, Environment.SystemPageSize };
 
+    app.MapGet("api/systeminfo",
+        async static (HttpContext context, ILogger<Program> logger) =>
+        {
+            var systemInfo = new
+            {
+                RuntimeInformation.OSDescription,
+                RuntimeInformation.OSArchitecture,
+                RuntimeInformation.ProcessArchitecture,
+                Environment.ProcessorCount,
+                Environment.SystemPageSize
+            };
             logger.LogInformation("systeminfo executed!");
             logger.LogTrace("systeminfo executed trace!");
 
             // Manual Instrumentation
-            using Activity? activity = DiagnosticsConfig.ActivitySource.StartActivity("RootActivity", ActivityKind.Server);
+            using var activity =
+                Common.Observability.OpenTelemetry.Config.ActivitySource.StartActivity("SystemInfoActivity",
+                    ActivityKind.Server);
             activity?.SetTag("foo", 1);
             activity?.SetTag("bar", "Hello, World!");
-            activity?.SetTag("baz", new[] { 1, 2, 3 });
+            activity?.SetTag("baz",
+                new[]
+                {
+                    1, 2, 3
+                });
 
             await context.Response.WriteAsJsonAsync(systemInfo);
         });
-    app.MapPaymentApi();
+    // app.MapPaymentApi();
 }
 
 app.MapBlogsApi();
@@ -194,22 +237,67 @@ app.MapFallback(static async context => { await context.Response.WriteAsync("Pag
 // log all endpoints
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
     using var scope = app.Services.CreateScope();
     var dataSource = scope.ServiceProvider.GetRequiredService<EndpointDataSource>();
     var kestrelServer = scope.ServiceProvider.GetRequiredService<IServer>();
-    string? baseUrl = kestrelServer.Features.Get<IServerAddressesFeature>()?.Addresses.First();
-    logger.LogInformation("Open API: {Route}/api", baseUrl);
+    var baseUrl = kestrelServer.Features.Get<IServerAddressesFeature>()?.Addresses.First();
+    app.Logger.LogInformation("Open API: {Route}/api", baseUrl);
     foreach (var endpoint in dataSource.Endpoints)
     {
         if (endpoint is not RouteEndpoint routeEndpoint)
         {
             continue;
         }
-        logger.LogInformation("{Route}/{RawText} : {DisplayName}",
+        app.Logger.LogInformation("{Route}/{RawText} : {DisplayName}",
             baseUrl,
             routeEndpoint.RoutePattern.RawText,
             routeEndpoint.DisplayName);
     }
 });
+
+// app.MapGet("/testtt",
+//     static (context) =>
+//     {
+//         var rawRequestData = context.Request.BodyReader.ReadAsync().Result;
+//         var data = Encoding.UTF8.GetString(rawRequestData.Buffer);
+//         return context.Response.WriteAsync("Hello World!");
+//     });
+
+// string GetOrCreateFilePath(string fileName, string filesDirectory = "uploadFiles")
+// {
+//     var directoryPath = Path.Combine(app.Environment.ContentRootPath, filesDirectory);
+//     Directory.CreateDirectory(directoryPath);
+//     return Path.Combine(directoryPath, fileName);
+// }
+//
+// // Function to upload the file with the specified name
+// async Task UploadFileWithName(IFormFile file, string fileSaveName)
+// {
+//     var filePath = GetOrCreateFilePath(fileSaveName);
+//     await using var fileStream = new FileStream(filePath, FileMode.Create);
+//     await file.CopyToAsync(fileStream);
+// }
+
+// app.MapPost("/upload",
+//         async (IFormFile file) =>
+//         {
+//             var fileSaveName = Guid.NewGuid().ToString("N") + Path.GetExtension(file.FileName);
+//             await UploadFileWithName(file, fileSaveName);
+//             return TypedResults.Ok("File uploaded successfully!");
+//         })
+//     .DisableAntiforgery();
+
+// Add OpenAPI 3.0 document serving middleware
+// Available at: http://localhost:<port>/swagger/v1/swagger.json
+// app.UseOpenApi();
+//
+// // Add web UIs to interact with the document
+// // Available at: http://localhost:<port>/swagger
+// app.UseSwaggerUi3();
+
+// app.UseReDoc(options =>
+// {
+//     options.Path = "/redoc";
+// });
+
 app.Run();

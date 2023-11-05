@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Operations.Refresh;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Database;
 using Raven.Client.Http;
@@ -13,16 +15,20 @@ namespace Sparkify;
 
 public static class DbManager
 {
-    private const string Name = "Sparkify";
-    public static string? HttpUriString { get; set; }
-    public static string? TcpHostName { get; set; }
-    public static int? TcpPort { get; set; }
+    public static DocumentStore Store { get; private set; }
+    // private ILogger _logger = new Logger<DbManager>(new LoggerFactory());
+    // private const string Name = "Sparkify-Test";
+    // public static string? HttpUriString { get; set; }
+    // public static string? TcpHostName { get; set; }
+    // public static int? TcpPort { get; set; }
 
     /// The use of “Lazy” ensures that the document store is only created once
     /// without you having to worry about double locking or explicit thread safety issues
-    private static readonly Lazy<IDocumentStore> InternalStore = new(CreateStore);
 
-    public static IDocumentStore Store => InternalStore.Value;
+    // public static void InitializeDocumentStore(string databaseName, string httpUriString, string tcpHostName, int tcpPort)
+    // {
+    //     _internalStore = new Lazy<IDocumentStore>(() => CreateStore(databaseName));
+    // }
 
     /// <summary>
     ///     The DocumentStoreHolder class holds a single instance of the Document Store object that will be used across
@@ -38,16 +44,22 @@ public static class DbManager
     ///     - Export & Import database data.
     /// </summary>
     /// <returns>An <see cref="IDocumentStore" /> to further customize the added endpoints.</returns>
-    private static DocumentStore CreateStore()
+    public static void CreateStore(string databaseName, string httpUriString, string tcpHostName, int tcpPort)
     {
         // test interserver connections
-        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
-        var client = new TcpClient { SendTimeout = 3000 };
+        var httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(3)
+        };
+        var client = new TcpClient
+        {
+            SendTimeout = 3000
+        };
 
         try
         {
-            ArgumentNullException.ThrowIfNull(HttpUriString);
-            var httpEndpoint = new Uri(HttpUriString);
+            ArgumentNullException.ThrowIfNull(httpUriString);
+            var httpEndpoint = new Uri(httpUriString);
             httpClient.GetAsync(httpEndpoint).Wait();
         }
         catch (Exception ex)
@@ -62,9 +74,9 @@ public static class DbManager
 
         try
         {
-            ArgumentNullException.ThrowIfNull(TcpHostName);
-            ArgumentNullException.ThrowIfNull(TcpPort);
-            var tcpEndPoint = new IPEndPoint(IPAddress.Parse(TcpHostName), TcpPort.Value);
+            ArgumentNullException.ThrowIfNull(tcpHostName);
+            ArgumentNullException.ThrowIfNull(tcpPort);
+            var tcpEndPoint = new IPEndPoint(IPAddress.Parse(tcpHostName), tcpPort);
             client.Connect(tcpEndPoint);
         }
         catch (SocketException ex)
@@ -77,10 +89,13 @@ public static class DbManager
             client.Dispose();
         }
 
-        var store = new DocumentStore
+        Store = new DocumentStore
         {
             // Define the cluster node URLs (required)
-            Urls = new[] { HttpUriString },
+            Urls = new[]
+            {
+                httpUriString
+            },
 
             // Set conventions as necessary (optional)
             Conventions =
@@ -99,23 +114,28 @@ public static class DbManager
                 HttpVersion = HttpVersion.Version30
             },
             // Define a default database (optional)
-            Database = Name
+            Database = databaseName
         };
 
-        store.Initialize();
+        Store.Initialize();
 
-        store.SetRequestTimeout(TimeSpan.FromSeconds(3));
+        Store.SetRequestTimeout(TimeSpan.FromSeconds(3));
 
-        if (!DatabaseExists(store))
+        if (!DatabaseExists(Store))
         {
             try
             {
-                var database = new DatabaseRecord(Name);
-                store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
+                var database = new DatabaseRecord(databaseName);
+                Store.Maintenance.Server.Send(new CreateDatabaseOperation(database));
+
+                Store.Maintenance.Send(new ConfigureRefreshOperation(new RefreshConfiguration
+                {
+                    Disabled = false
+                }));
             }
             catch (ConcurrencyException ex)
             {
-                Debug.WriteLine($"Attempted to create DB '{Name}'. Exception: {ex.Message}");
+                Debug.WriteLine($"Attempted to create DB '{databaseName}'. Exception: {ex.Message}");
             }
         }
 
@@ -138,15 +158,13 @@ public static class DbManager
         - When disabled, normal cache validation will occur, which means that the client
         will always check with the server to see if the data has changed, and the server
         will respond with a 304 if the data has not changed. This is the default behavior. */
-        store.AggressivelyCache();
+        Store.AggressivelyCache();
 
-        store.SeedUsers().Wait();
+        // store.SeedUsers().Wait();
 
-        // IndexCreation.CreateIndexes(typeof(DbManager).Assembly, store);
+        Store.SetRequestTimeout(TimeSpan.FromSeconds(30));
 
-        store.SetRequestTimeout(TimeSpan.FromSeconds(15));
-
-        return store;
+        IndexCreation.CreateIndexes(typeof(DbManager).Assembly, Store);
     }
 
     private static bool DatabaseExists(IDocumentStore documentStore)

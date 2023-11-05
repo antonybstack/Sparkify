@@ -5,13 +5,13 @@ using SkiaSharp;
 
 namespace Sparkify.Features.BlogFeatures;
 
-public sealed class FaviconHttpClient(HttpClient httpClient)
+internal sealed class FaviconHttpClient(HttpClient httpClient)
 {
-    private static readonly HtmlWeb HtmlWeb = new();
+    private static readonly HtmlWeb _htmlWeb = new();
 
-    public async IAsyncEnumerable<FaviconPacket> GetFaviconDataStreamPackets(Uri uri)
+    internal async IAsyncEnumerable<FaviconPacket> GetFaviconDataStreamPackets(Uri uri)
     {
-        var faviconUrls = ExtractAllFaviconNodes(uri);
+        var faviconUrls = await ExtractAllFaviconNodes(uri);
         if (faviconUrls.Count is 0)
         {
             yield break;
@@ -36,9 +36,8 @@ public sealed class FaviconHttpClient(HttpClient httpClient)
     {
         try
         {
-            byte[] stream = await httpClient.GetByteArrayAsync(faviconUrl);
+            var stream = await httpClient.GetByteArrayAsync(faviconUrl);
             var image = SKImage.FromBitmap(SKBitmap.Decode(stream));
-            // if image null, then return
             var ms = new MemoryStream();
             image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
             ms.Position = 0;
@@ -49,110 +48,52 @@ public sealed class FaviconHttpClient(HttpClient httpClient)
         }
         catch (Exception)
         {
-            return null; // return null on exception
+            return null;
         }
     }
 
-    // public async Task<ICollection<FaviconPacket>> GetFaviconDataStreamPackets(Uri uri)
-    // {
-    //     try
-    //     {
-    //         var faviconUrls = ExtractAllFaviconNodes(uri);
-    //         if (faviconUrls.Count is 0)
-    //         {
-    //             return Array.Empty<FaviconPacket>();
-    //         }
-    //
-    //         var tasks = new List<Task<FaviconPacket?>>();
-    //         foreach (var faviconUrl in faviconUrls)
-    //         {
-    //             tasks.Add(GetFaviconData(faviconUrl));
-    //         }
-    //
-    //         var results = await Task.WhenAll(tasks);
-    //         return results.Where(packet => packet.HasValue).Select(packet => packet.Value).ToList();
-    //     }
-    //     catch (Exception)
-    //     {
-    //         return Array.Empty<FaviconPacket>();
-    //     }
-    // }
-
-    // public async Task<ICollection<FaviconPacket>> GetFaviconDataStreamPackets(Uri uri)
-    // {
-    //     try
-    //     {
-    //         var faviconUrls = ExtractAllFaviconNodes(uri);
-    //         if (faviconUrls.Count is 0)
-    //         {
-    //             return Array.Empty<FaviconPacket>();
-    //         }
-    //
-    //         var tasks = faviconUrls.Select(async faviconUrl =>
-    //         {
-    //             try
-    //             {
-    //                 byte[] stream = await httpClient.GetByteArrayAsync(faviconUrl);
-    //                 var image = SKImage.FromBitmap(SKBitmap.Decode(stream));
-    //                 // if image null, then return
-    //                 var ms = new MemoryStream();
-    //                 image.Encode(SKEncodedImageFormat.Png, 100).SaveTo(ms);
-    //                 ms.Position = 0;
-    //                 return new FaviconPacket(
-    //                     $"{Ulid.NewUlid()}.png",
-    //                     image.Width * image.Height,
-    //                     ms);
-    //             }
-    //             catch (Exception)
-    //             {
-    //                 return new FaviconPacket(
-    //                     $"{Ulid.NewUlid()}.png",
-    //                     0,
-    //                     new MemoryStream());
-    //             }
-    //         });
-    //
-    //         return await Task.WhenAll(tasks);
-    //     }
-    //     catch (Exception)
-    //     {
-    //         return Array.Empty<FaviconPacket>();
-    //     }
-    // }
-
-    private static ICollection<Uri> ExtractAllFaviconNodes(Uri domain)
+    private static async Task<ICollection<Uri>> ExtractAllFaviconNodes(Uri domain)
     {
-        var document = HtmlWeb.Load(domain);
-        var headerNode = document.DocumentNode.SelectSingleNode(XPathExpression);
-        if (headerNode is null)
+        try
+        {
+            var document = await _htmlWeb.LoadFromWebAsync(domain.AbsoluteUri);
+            var headerNode = document.DocumentNode.SelectSingleNode(_xPathExpression);
+            if (headerNode is null)
+            {
+                return Array.Empty<Uri>();
+            }
+            var uniqueUrls = new HashSet<Uri>();
+            foreach (var expre in _faviconExpressions)
+            {
+                string[]? nodes = headerNode.SelectNodes(expre)
+                    ?
+                    .Select(static x => WebUtility.HtmlDecode(x.Attributes["href"]?.Value ?? x.Attributes["src"]?.Value))
+                    .OfType<string>()
+                    .Distinct()
+                    .ToArray();
+
+                if (nodes is null || nodes.Length is 0)
+                {
+                    continue;
+                }
+                foreach (var node in nodes)
+                {
+                    uniqueUrls.Add(Uri.IsWellFormedUriString(node, UriKind.Absolute)
+                        ? new Uri(node)
+                        : new Uri(domain, node));
+                }
+            }
+            return uniqueUrls;
+        }
+        catch (Exception)
         {
             return Array.Empty<Uri>();
         }
-        HashSet<Uri> uniqueUrls = new();
-        foreach (string expre in FaviconExpressions)
-        {
-            var nodes = headerNode.SelectNodes(expre)
-                ?
-                .Select(static x => WebUtility.HtmlDecode(x.Attributes["href"]?.Value))
-                .OfType<string>();
-
-            if (nodes is null)
-            {
-                continue;
-            }
-            foreach (string node in nodes)
-            {
-                uniqueUrls.Add(Uri.IsWellFormedUriString(node, UriKind.Absolute)
-                    ? new Uri(node)
-                    : new Uri(domain, node));
-            }
-        }
-        return uniqueUrls;
     }
 
-    private static readonly XPathExpression XPathExpression = XPathExpression.Compile("//head");
+    private static readonly XPathExpression _xPathExpression = XPathExpression.Compile("//head");
 
-    private static readonly string[] FaviconExpressions =
+    private static readonly string[] _faviconExpressions =
     {
         "//link[translate(@rel,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='icon']",
         "//link[translate(@rel, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='alternate icon']",
@@ -167,6 +108,7 @@ public sealed class FaviconHttpClient(HttpClient httpClient)
         "//meta[translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='twitter:image']",
         "//link[translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='image/x-icon']",
         "//link[translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='image/png']",
-        "//link[contains(translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '.ico')]"
+        "//link[contains(translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '.ico')]",
+        "//img[contains(translate(@src, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'logo')]"
     };
 }

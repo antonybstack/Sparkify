@@ -1,10 +1,15 @@
-using System.Reflection;
+using System;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace Sparkify.Observability;
+namespace Common.Observability;
 
 public static partial class OpenTelemetry
 {
@@ -14,14 +19,16 @@ public static partial class OpenTelemetry
     /// <remarks>
     /// OpenTelemetry is not registered when running in Development.
     /// </remarks>
-    public static WebApplicationBuilder RegisterOpenTelemetry(this WebApplicationBuilder builder)
+    public static IHostApplicationBuilder RegisterOpenTelemetry(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddSingleton(TracerProvider.Default.GetTracer(Config.ServiceName));
+
         if (builder.Environment.IsDevelopment())
         {
             return builder;
         }
 
-        ResourceBuilder resource = ResourceBuilder.CreateDefault()
+        var resource = ResourceBuilder.CreateDefault()
             .AddService(
                 serviceNamespace: "Sparkify",
                 serviceName: builder.Environment.ApplicationName,
@@ -31,13 +38,17 @@ public static partial class OpenTelemetry
             )
             .AddAttributes(new Dictionary<string, object>
             {
-                { "deployment.environment", builder.Environment.EnvironmentName }
+                {
+                    "deployment.environment", builder.Environment.EnvironmentName
+                }
             });
 
         builder.Services
             .AddOpenTelemetry()
             .AddTracing(builder.Configuration, resource)
             .AddMetrics(builder.Configuration);
+
+        // builder.Services.AddSingleton(TracerProvider.Default.GetTracer(Config.ServiceName));
 
         return builder;
     }
@@ -47,7 +58,7 @@ public static partial class OpenTelemetry
         ResourceBuilder resource) =>
         builder.WithTracing(tracerProviderBuilder =>
             tracerProviderBuilder
-                .AddSource(DiagnosticsConfig.ActivitySource.Name)
+                .AddSource(Config.ActivitySource.Name)
                 .SetResourceBuilder(resource)
                 .AddAspNetCoreInstrumentation(options =>
                 {
@@ -81,8 +92,9 @@ public static partial class OpenTelemetry
         IConfiguration configuration) =>
         builder.WithMetrics(metricsProviderBuilder =>
             metricsProviderBuilder
-                .ConfigureResource(resource => resource.AddService(DiagnosticsConfig.ServiceName))
-                .AddMeter(DiagnosticsConfig.Meter.Name)
+                .ConfigureResource(static resource =>
+                    resource.AddService(Config.ServiceName))
+                .AddMeter(Config.Meter.Name)
                 .AddAspNetCoreInstrumentation()
                 .AddProcessInstrumentation()
                 .AddRuntimeInstrumentation()
@@ -95,8 +107,7 @@ public static partial class OpenTelemetry
                     options.Endpoint = new Uri(configuration["Urls:Otlp"]);
                     o.PeriodicExportingMetricReaderOptions = new PeriodicExportingMetricReaderOptions
                     {
-                        ExportIntervalMilliseconds = 5000,
-                        ExportTimeoutMilliseconds = 5000
+                        ExportIntervalMilliseconds = 5000, ExportTimeoutMilliseconds = 5000
                     };
                 })
         );
