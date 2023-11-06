@@ -24,6 +24,10 @@ builder.RegisterSerilog(otlpOptions);
 
 DbManager.CreateStore(databaseOptions.Name, databaseOptions.Http, databaseOptions.TcpHostName, databaseOptions.TcpPort);
 
+DbManager.Store.ClearAllRefreshMetadata();
+DbManager.Store.DeleteNonUniqueArticles();
+DbManager.Store.InitializeRssBlogFeeds();
+
 builder.Services.AddSingleton<Processor>();
 builder.Services.AddHostedService<Worker>();
 
