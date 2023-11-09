@@ -19,7 +19,7 @@ var appOptions = builder.AddConfigAndValidate<FeedProcessorAppOptions, ValidateF
 var databaseOptions = builder.AddConfigAndValidate<DatabaseOptions, ValidateDatabaseOptions>();
 var otlpOptions = builder.AddConfigAndValidate<OtlpOptions, ValidateOtlpOptions>();
 
-builder.RegisterOpenTelemetry();
+builder.RegisterOpenTelemetry(otlpOptions);
 builder.RegisterSerilog(otlpOptions);
 
 DbManager.CreateStore(databaseOptions.Name, databaseOptions.Http, databaseOptions.TcpHostName, databaseOptions.TcpPort);

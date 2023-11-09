@@ -81,7 +81,7 @@ builder.Services.AddOpenApiDocument();
 //     c.UseInlineDefinitionsForEnums();
 //     // c.AddMissingSchemas();
 // });
-builder.RegisterOpenTelemetry();
+builder.RegisterOpenTelemetry(otlpOptions);
 builder.RegisterSerilog(otlpOptions);
 /* DEPENDENCY INJECTION (SERVICES) SECTION */
 // builder.Services.TryAddSingleton<IEventChannel, EventChannel>();
