@@ -1,47 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <link rel="icon" href="%sveltekit.assets%/favicon.png" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        %sveltekit.head%
-    </head>
-    <body data-sveltekit-preload-data="hover">
-        <div class="content">%sveltekit.body%</div>
-    </body>
-</html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Language" content="en">
+    <title>Sparkify</title>
 
+    %sveltekit.head%
+
+    <link href="%sveltekit.assets%/favicon.png" rel="icon"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link
+            href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@100;300;400;500;600&display=swap"
+            rel="preload"
+            as="style"
+            crossorigin
+    />
+    <link
+            rel="preload"
+            href="https://fonts.gstatic.com/s/lexenddeca/v21/K2F1fZFYk-dHSE0UPPuwQ5qnJy_YZ2ON.woff2"
+            crossorigin
+            as="font"
+            type="font/woff2"
+    />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@100;300;400;500;600&display=swap"
+            rel="stylesheet"
+            crossorigin
+    />
+</head>
 <style>
-    html {
-        background-color: #333;
-        color: #fff;
-        padding: 10px;
-        margin: 10px;
-        height: 100%;
+    :root {
+        --background-color: hsl(25, 6%, 14%);
+        --foreground-color: hsl(25, 4%, 18%);
+        --foreground-color-bright: hsl(30, 4%, 19%);
+        --foreground-color-bright-25: hsl(30, 4%, 22%);
+        --text-color: hsl(0, 0%, 90%);
+        --link-color: hsl(205, 100%, 65%);
+        --accent-color-bright: hsl(40, 20%, 85%);
+        --accent-color: hsl(40, 10%, 80%);
+        --accent-color-dim: hsl(40, 6%, 50%);
+        --accent-color-dim-30: hsl(40, 6%, 30%);
+        --accent-color-dim-20: hsl(40, 6%, 20%);
+        --accent-color-dim-15: hsl(40, 6%, 15%);
+    }
+
+    * {
+        font-family: 'Lexend Deca', sans-serif, Tahoma, sans-serif, Lucida Sans, sans-serif, Arial, sans-serif, Helvetica, sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell;
+        font-weight: 400;
+        color: var(--text-color);
+    }
+
+    mark {
+        color: initial;
+    }
+
+    html[data-theme="light"] {
+        --background-color: #fff;
+        --text-color: #121416d8;
+        --link-color: #57b3ff;
     }
 
     body {
+        color: var(--text-color);
+    }
+
+    a {
+        color: var(--link-color);
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    a:hover {
+        text-decoration: underline;
+        filter: brightness(90%);
+    }
+
+    mark {
+        padding: 0 0.05em;
+    }
+
+    body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow-y: hidden;
         margin: 0;
-        height: 100%;
     }
 
-    .content {
-        display: contents;
+    html {
+        scroll-behavior: smooth;
     }
 
-    /* Styles for small viewports */
+    img {
+        display: block;
+        width: clamp(48px, 10vw, 56px);
+        height: clamp(48px, 10vw, 56px);
+    }
 
-        body {
-            display: flex;
-            flex-direction: column; /* Make it a column */
-            /* justify-content: center; */
-            align-items: center;
-            height: 100%;
-        }
-
-        .content {
-            width: 100%; /* To make sure it takes the full width */
-            text-align: center; /* Center the inner content */
-        }
-
+    input[type="search"] {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        width: 100%;
+        font-size: 1.25rem;
+        padding: 1rem 1.5rem;
+        border: none;
+        border-radius: 0.5rem 1.5rem 0.5rem 1.5rem;
+        background-color: var(--foreground-color);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
 </style>
+<body style="background-color: #262322"
+      data-sveltekit-preload-data="hover">
+<div class="content">%sveltekit.body%</div>
+</body>
+</html>
