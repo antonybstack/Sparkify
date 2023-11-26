@@ -9,10 +9,7 @@ public sealed class ApiOptions
     public string[] AllowedOrigins { get; init; }
 }
 
-[OptionsValidator]
-public sealed partial class ValidateApiOptions : IValidateOptions<ApiOptions>;
-
-public sealed partial class ValidateApiOptions
+public sealed class ValidateApiOptions : IValidateOptions<ApiOptions>
 {
     public ValidateOptionsResult Validate(string? name, ApiOptions options)
     {

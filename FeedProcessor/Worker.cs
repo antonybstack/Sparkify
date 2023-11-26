@@ -94,14 +94,14 @@ public sealed class Worker(
                             await processor.FetchBlogArticles(session, item.Result, cancellationToken);
 
                             // Set refresh metadata
-                            item.Metadata[Constants.Documents.Metadata.Refresh] =
+                            session.Advanced.GetMetadataFor(item.Result)[Constants.Documents.Metadata.Refresh] =
                                 // Add a random offset to prevent thundering herd
                                 DateTimeOffset.UtcNow.AddSeconds(new Random().Next(
                                     config.Value.BlogRetrievalIntervalSeconds,
                                     config.Value.BlogRetrievalIntervalSeconds + 30));
                             logger.LogInformation("Setting {Title} to fetch articles again at {Refresh}",
                                 item.Result.Title,
-                                item.Metadata[Constants.Documents.Metadata.Refresh]);
+                                session.Advanced.GetMetadataFor(item.Result)[Constants.Documents.Metadata.Refresh]);
                         }
                         catch (Exception e)
                         {

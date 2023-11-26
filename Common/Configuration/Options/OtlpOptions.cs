@@ -9,10 +9,7 @@ public sealed class OtlpOptions
     public string SinkEndpoint { get; init; }
 }
 
-[OptionsValidator]
-public sealed partial class ValidateOtlpOptions : IValidateOptions<OtlpOptions>;
-
-public sealed partial class ValidateOtlpOptions(IConfiguration config)
+public sealed class ValidateOtlpOptions(IConfiguration config) : IValidateOptions<OtlpOptions>
 {
     public OtlpOptions Config { get; private set; } = config.GetSection(nameof(OtlpOptions)).Get<OtlpOptions>() ??
                                                       throw new ArgumentNullException(nameof(config));

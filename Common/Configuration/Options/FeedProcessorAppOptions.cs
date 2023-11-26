@@ -10,10 +10,7 @@ public sealed class FeedProcessorAppOptions
     public bool FetchFromRssArchive { get; init; }
 }
 
-[OptionsValidator]
-public sealed partial class ValidateFeedProcessorAppOptions : IValidateOptions<FeedProcessorAppOptions>;
-
-public sealed partial class ValidateFeedProcessorAppOptions
+public sealed class ValidateFeedProcessorAppOptions : IValidateOptions<FeedProcessorAppOptions>
 {
     public ValidateOptionsResult Validate(string? name, FeedProcessorAppOptions options)
     {

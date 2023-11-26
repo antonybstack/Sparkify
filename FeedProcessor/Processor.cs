@@ -47,11 +47,8 @@ public sealed class Processor(ILogger<Processor> logger, IOptions<FeedProcessorA
 
         foreach (var feed in feeds)
         {
-            if (blogRecord is { Title: null } or { Description: null })
-            {
-                blogRecord.Title = feed.Title;
-                blogRecord.Description = feed.Description;
-            }
+            blogRecord.Title ??= feed.Title;
+            blogRecord.Description ??= feed.Description;
 
             var blogTimeSeries = session.TimeSeriesFor(blogRecord, "BlogPosted");
             var articleUids = await session.Query<Article>()
@@ -61,7 +58,7 @@ public sealed class Processor(ILogger<Processor> logger, IOptions<FeedProcessorA
 
             // filter out articles that have already been stored
             var articles = feed.Items
-                .Where(x => !articleUids.Contains(XxHash3.HashToUInt64(Encoding.UTF8.GetBytes(x.Id)).ToString()))
+                .Where(x => !articleUids.Contains(XxHash3.HashToUInt64(Encoding.UTF8.GetBytes(x.Id ?? x.Link)).ToString()))
                 .ToList();
 
             foreach (var article in articles)
@@ -125,7 +122,7 @@ public sealed class Processor(ILogger<Processor> logger, IOptions<FeedProcessorA
                             ? WebUtility.HtmlDecode(Uglify.Html(subtitle).Code).Trim()
                             : null,
                     Date = articleDate.Value.UtcDateTime,
-                    Uid = XxHash3.HashToUInt64(Encoding.UTF8.GetBytes(article.Id)).ToString(),
+                    Uid = XxHash3.HashToUInt64(Encoding.UTF8.GetBytes(article.Id ?? article.Link)).ToString(),
                     Categories = article.Categories
                         .Select(WebUtility.HtmlDecode)
                         .Select(static x => x?.Trim())
@@ -207,6 +204,8 @@ public sealed class Processor(ILogger<Processor> logger, IOptions<FeedProcessorA
         if (blog is null)
         {
             logger.LogError("Blog {BlogId} not found", rssBlogFeed.BlogId);
+            // delete rss blog feed
+            session.Delete(rssBlogFeed);
             return;
         }
 

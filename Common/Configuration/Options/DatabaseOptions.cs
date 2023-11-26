@@ -12,10 +12,7 @@ public sealed class DatabaseOptions
     public int TcpPort { get; init; }
 }
 
-[OptionsValidator]
-public sealed partial class ValidateDatabaseOptions : IValidateOptions<DatabaseOptions>;
-
-public sealed partial class ValidateDatabaseOptions(IConfiguration config)
+public sealed class ValidateDatabaseOptions(IConfiguration config) : IValidateOptions<DatabaseOptions>
 {
     public DatabaseOptions Config { get; private set; } =
         config.GetSection(nameof(DatabaseOptions)).Get<DatabaseOptions>() ??
