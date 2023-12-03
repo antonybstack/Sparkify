@@ -91,8 +91,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(static options =>
         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 });
 
-builder.Services.AddResponseCaching();
-
 builder.Services.AddRateLimiter(static options =>
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, IPAddress>(static context =>
     {
@@ -130,7 +128,6 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseCors();
-app.UseResponseCaching();
 
 app.RegisterSerilogRequestLogging();
 app.LogStartupInfo(builder);
