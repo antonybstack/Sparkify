@@ -15,16 +15,16 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.5.1-beta.1"/>
         <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="0.5.0-beta.3"/>
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.5.1"/>
-        <PackageReference Include="Serilog.AspNetCore" Version="7.0.1-dev-00320"/>
+        <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
         <PackageReference Include="Serilog.Enrichers.Demystifier" Version="1.0.2"/>
         <PackageReference Include="Serilog.Enrichers.Environment" Version="2.3.0"/>
         <PackageReference Include="Serilog.Enrichers.Span" Version="3.1.0"/>
         <PackageReference Include="Serilog.Enrichers.Thread" Version="3.2.0-dev-00752"/>
         <PackageReference Include="Serilog.Exceptions" Version="8.4.0"/>
-        <PackageReference Include="Serilog.Formatting.Compact" Version="2.0.0-dev-00961"/>
-        <PackageReference Include="Serilog.Settings.Configuration" Version="7.0.2-dev-00546"/>
-        <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0-dev-00923"/>
-        <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="1.2.0-dev-00247"/>
+        <PackageReference Include="Serilog.Formatting.Compact" Version="2.0.0" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+        <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="1.2.0" />
         <!--        <PackageReference Include="NUglify" Version="1.21.0"/>-->
     </ItemGroup>
     <ItemGroup>
