@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Common.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -99,6 +100,14 @@ public static class SerilogRegistration
                 diagnosticContext.Set("RemotePort", httpContext.Connection.RemotePort);
                 diagnosticContext.Set("LocalIpAddress", httpContext.Connection.LocalIpAddress);
                 diagnosticContext.Set("LocalPort", httpContext.Connection.LocalPort);
+                var headers = httpContext.Request.Headers.ToDictionary(
+                    static header => header.Key,
+                    static header => header.Value.ToString());
+                foreach (var (key, value) in headers)
+                {
+                    diagnosticContext.Set($"Headers:{key}", value);
+                }
             };
+
         });
 }
