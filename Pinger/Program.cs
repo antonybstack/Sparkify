@@ -3,6 +3,8 @@ using Pinger;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+builder.Services.AddWindowsService();
+
 builder.Services.Configure<HostOptions>(static options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
